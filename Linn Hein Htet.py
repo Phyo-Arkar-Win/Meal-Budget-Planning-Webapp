@@ -1,1 +1,0 @@
-print("Hello!\nLinn Hein Htet")
