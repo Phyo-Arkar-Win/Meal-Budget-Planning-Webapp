@@ -8,36 +8,46 @@ interface AuthRequest extends Request {
 
 export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.body.userId || req.user?.id;
+    const { weight, height, age, gender, activity_level, fitness_goal } = req.body;
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    // Validate required fields for calculation
+    if (!weight || !height || !age || !gender) {
+      return res.status(400).json({ message: "weight, height, age, and gender are required" });
     }
 
-    const { weight, height, age, activity_level, fitness_goal } = req.body;
-    if (weight) user.weight = weight;
-    if (height) user.height = height;
-    if (age) user.age = age;
-    if (activity_level) user.activity_level = activity_level;
-    if (fitness_goal) user.fitness_goal = fitness_goal;
+    // Create a temporary user object for calculation (no database lookup needed)
+    const tempUser = {
+      weight: Number(weight),
+      height: Number(height),
+      age: Number(age),
+      gender: gender as 'male' | 'female',
+    } as any;
 
+    const { protein_target, fat_target, sugar_target, bmr, tdee } = calculateSpecificMacros(tempUser, { activity_level, fitness_goal });
 
-    const { protein_target, fat_target, sugar_target } = calculateSpecificMacros(user);
-
-    user.protein_target = protein_target;
-    user.fat_target = fat_target;
-    user.sugar_target = sugar_target;
-    
-
-    await user.save();
+    // If userId is provided, update and save the user document
+    const userId = req.body.userId || req.user?.id;
+    if (userId) {
+      const user = await User.findById(userId);
+      if (user) {
+        if (weight) user.weight = weight;
+        if (height) user.height = height;
+        if (age) user.age = age;
+        user.protein_target = protein_target;
+        user.fat_target = fat_target;
+        user.sugar_target = sugar_target;
+        await user.save();
+      }
+    }
 
     return res.status(200).json({
-      message: "Protein, Fat, and Sugar targets updated",
+      message: "Macros calculated",
       data: {
-        protein: user.protein_target,
-        fat: user.fat_target,
-        sugar: user.sugar_target
+        bmr,
+        tdee,
+        protein: protein_target,
+        fat: fat_target,
+        sugar: sugar_target
       }
     });
 
