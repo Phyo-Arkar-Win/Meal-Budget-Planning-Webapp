@@ -4,7 +4,8 @@ type ActivityLevel = 'Sedentary' | 'Lightly Active' | 'Moderately Active' | 'Ver
 type FitnessGoal = 'Weight Loss' | 'Maintenance' | 'Muscle Gain';
 
 export const calculateSpecificMacros = (user: IUser, options?: { activity_level?: ActivityLevel; fitness_goal?: FitnessGoal }) => {
-  // TDEE for Fat/Sugar
+  
+  // BMR Calculation using Mifflin-St Jeor Equation
   let bmr: number;
   if (user.gender === 'male') {
     bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age) + 5;
@@ -22,6 +23,8 @@ export const calculateSpecificMacros = (user: IUser, options?: { activity_level?
 
   const activity_level = options?.activity_level ?? 'Sedentary';
   const activityFactor = activityMultipliers[activity_level] || 1.2;
+
+  // TDEE(Maintenance Calories) Calculation
   const tdee = bmr * activityFactor;
 
   // 2. PROTEIN TARGET (Bodyweight * k)
