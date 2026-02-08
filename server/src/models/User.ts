@@ -9,6 +9,14 @@ export interface IUser extends Document {
   age: number;
   weight: number;
   height: number;
+  fitness_goal: string;
+  targets: {
+    daily_cal: number;
+    carbohydrate: number;
+    protein: number;
+    fat: number;
+    sugar: number;
+  };
 }
 
 // Mongoose Schema for Users
@@ -43,6 +51,19 @@ const UserSchema: Schema = new Schema({
   height: { 
     type: Number, 
     required: true },
+
+  fitness_goal: {
+      type: String,
+      required: true },
+
+  targets: {
+    daily_cal: Number,
+    carbohydrate: Number,
+    protein: Number,
+    fat: Number,
+    sugar: Number
+  }
+    
 }, {
   timestamps: true,
 });
