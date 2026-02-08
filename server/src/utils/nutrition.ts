@@ -32,22 +32,54 @@ export const calculateSpecificMacros = (user: IUser) => {
     default:                 k_multiplier = 1.2;
   }
 
+<<<<<<< Updated upstream
   if (user.fitness_goal === 'Muscle Gain') {
     k_multiplier += 0.1; 
+=======
+  const fitness_goal = options?.fitness_goal ?? 'Maintenance';
+
+  let totalDailyCalories: number; 
+  let proteinK: number;           
+  let fatPercentage: number;      
+  let sugarPercentage: number;    
+
+  switch (user.fitness_goal) {
+    case 'Muscle Gain':
+      totalDailyCalories = tdee * 1.20; // 120% of TDEE
+      proteinK = 2.0;                   // k = 2.0
+      fatPercentage = 0.25;             // 25%
+      sugarPercentage = 0.10;           // 10%
+      break;
+
+    case 'Weight Loss':
+      totalDailyCalories = tdee * 0.80; // 80% of TDEE
+      proteinK = 2.0;                   // k = 2.0
+      fatPercentage = 0.20;             // 20%
+      sugarPercentage = 0.05;           // 5%
+      break;
+
+    case 'Maintenance':
+    default:
+      totalDailyCalories = tdee;        // TDEE
+      proteinK = 1.6;                   // k = 1.6
+      fatPercentage = 0.25;             // 25%
+      sugarPercentage = 0.10;           // 10%
+      break;
+>>>>>>> Stashed changes
   }
 
-  const protein_target = Math.round(user.weight * k_multiplier);
 
+// Protein (g) = W x k -- 4 kcal/g
+  const protein_target = Math.round(user.weight * proteinK);
+  const protein_calories = Math.round(protein_target * 4)
 
-  // 3. FAT TARGET (~30% of TDEE) 
-  // Formula: (TDEE * 0.30) / 9 calories per gram
-  const fat_calories = tdee * 0.30;
+// Fat (g) = (Total Calories * Fat%) / 9 kcal/g
+  const fat_calories = totalDailyCalories * fatPercentage;
   const fat_target = Math.round(fat_calories / 9);
 
-
-  // 4. SUGAR TARGET (<10% of TDEE) 
-  // Formula: (TDEE * 0.10) / 4 calories per gram
-  const sugar_target = Math.round((tdee * 0.10) / 4);
+// Sugar (g) = (Total Calories * Sugar%) / 4 kcal/g
+  const sugar_calories = totalDailyCalories * sugarPercentage;
+  const sugar_target = Math.round(sugar_calories / 4);
 
   return {
     protein_target,
