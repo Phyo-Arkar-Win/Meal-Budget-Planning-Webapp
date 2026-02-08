@@ -10,7 +10,7 @@ export interface IUser extends Document {
   weight: number;
   height: number;
   fitness_goal: string;
-  targets: {
+  macro_targets: {
     daily_cal: number;
     carbohydrate: number;
     protein: number;
@@ -36,9 +36,9 @@ const UserSchema: Schema = new Schema({
   gender: { 
     type: String, 
     required: true },
-    age: { 
-      type: Number, 
-      required: true },
+  age: { 
+    type: Number, 
+    required: true },
   weight: { 
     type: Number, 
     required: true },
@@ -47,13 +47,14 @@ const UserSchema: Schema = new Schema({
     required: true },
   fitness_goal: {
       type: String,
-      required: true },
-  targets: {
-    daily_cal: Number,
-    carbohydrate: Number,
-    protein: Number,
-    fat: Number,
-    sugar: Number
+      default: null
+      },
+  macro_targets: {
+    daily_cal: { type: Number},
+    carbohydrate: { type: Number},
+    protein: { type: Number},
+    fat: { type: Number},
+    sugar: { type: Number}
   }
 }, {
   timestamps: true,
