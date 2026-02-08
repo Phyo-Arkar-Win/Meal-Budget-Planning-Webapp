@@ -23,7 +23,7 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
       gender: gender as 'male' | 'female',
     } as any;
 
-    const { protein_target, fat_target, sugar_target, bmr, tdee } = calculateSpecificMacros(tempUser, { activity_level, fitness_goal });
+    const { protein_target, fat_target, sugar_target, bmr, tdee} = calculateSpecificMacros(tempUser, { activity_level, fitness_goal });
 
     // If userId is provided, update and save the user document
     const userId = req.body.userId || req.user?.id;

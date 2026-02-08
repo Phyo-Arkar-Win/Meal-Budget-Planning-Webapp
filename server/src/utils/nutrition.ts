@@ -57,11 +57,12 @@ export const calculateSpecificMacros = (user: IUser, options?: { activity_level?
   // Formula: (TDEE * 0.10) / 4 calories per gram
   const sugar_target = Math.round((tdee * 0.10) / 4);
 
+
   return {
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
     protein_target,
     fat_target,
-    sugar_target
+    sugar_target,
   };
 };
