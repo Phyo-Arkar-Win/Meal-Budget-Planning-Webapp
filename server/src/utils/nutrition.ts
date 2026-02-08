@@ -1,7 +1,11 @@
 import { IUser } from "../models/User";
 
-export const calculateSpecificMacros = (user: IUser) => {
-  // TDEE for Fat/Sugar
+type ActivityLevel = 'Sedentary' | 'Lightly Active' | 'Moderately Active' | 'Very Active' | 'Extremely Active';
+type FitnessGoal = 'Weight Loss' | 'Maintenance' | 'Muscle Gain';
+
+export const calculateSpecificMacros = (user: IUser, options?: { activity_level?: ActivityLevel; fitness_goal?: FitnessGoal }) => {
+  
+  // BMR Calculation using Mifflin-St Jeor Equation
   let bmr: number;
   if (user.gender === 'male') {
     bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age) + 5;
@@ -9,34 +13,34 @@ export const calculateSpecificMacros = (user: IUser) => {
     bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age) - 161;
   }
 
-  const activityMultipliers: Record<string, number> = {
+  const activityMultipliers: Record<ActivityLevel, number> = {
     'Sedentary': 1.2,
     'Lightly Active': 1.375,
     'Moderately Active': 1.55,
     'Very Active': 1.725,
-    'Extremely Active': 1.9 
+    'Extremely Active': 1.9
   };
 
-  const activityFactor = activityMultipliers[user.activity_level] || 1.2;
+  const activity_level = options?.activity_level ?? 'Sedentary';
+  const activityFactor = activityMultipliers[activity_level] || 1.2;
+
+  // TDEE(Maintenance Calories) Calculation
   const tdee = bmr * activityFactor;
 
   // 2. PROTEIN TARGET (Bodyweight * k)
-  let k_multiplier = 1.2; 
+  let k_multiplier = 1.2;
 
-  switch (user.activity_level) {
-    case 'Sedentary':        k_multiplier = 1.2; break; 
-    case 'Lightly Active':   k_multiplier = 1.375; break; 
-    case 'Moderately Active':k_multiplier = 1.55; break; 
-    case 'Very Active':      k_multiplier = 1.725; break; 
+  switch (activity_level) {
+    case 'Sedentary':        k_multiplier = 1.2; break;
+    case 'Lightly Active':   k_multiplier = 1.375; break;
+    case 'Moderately Active':k_multiplier = 1.55; break;
+    case 'Very Active':      k_multiplier = 1.725; break;
     case 'Extremely Active': k_multiplier = 1.9; break;
     default:                 k_multiplier = 1.2;
   }
 
-<<<<<<< Updated upstream
-  if (user.fitness_goal === 'Muscle Gain') {
-    k_multiplier += 0.1; 
-=======
   const fitness_goal = options?.fitness_goal ?? 'Maintenance';
+  
 
   let totalDailyCalories: number; 
   let proteinK: number;           
@@ -65,7 +69,6 @@ export const calculateSpecificMacros = (user: IUser) => {
       fatPercentage = 0.25;             // 25%
       sugarPercentage = 0.10;           // 10%
       break;
->>>>>>> Stashed changes
   }
 
 
@@ -81,9 +84,12 @@ export const calculateSpecificMacros = (user: IUser) => {
   const sugar_calories = totalDailyCalories * sugarPercentage;
   const sugar_target = Math.round(sugar_calories / 4);
 
+
   return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
     protein_target,
     fat_target,
-    sugar_target
+    sugar_target,
   };
 };
