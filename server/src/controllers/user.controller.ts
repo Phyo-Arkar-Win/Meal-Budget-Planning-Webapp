@@ -33,9 +33,9 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
         if (weight) user.weight = weight;
         if (height) user.height = height;
         if (age) user.age = age;
-        user.protein_target = protein_target;
-        user.fat_target = fat_target;
-        user.sugar_target = sugar_target;
+        user.macro_targets.protein = protein_target;
+        user.macro_targets.fat = fat_target;
+        user.macro_targets.sugar = sugar_target;
         await user.save();
       }
     }
