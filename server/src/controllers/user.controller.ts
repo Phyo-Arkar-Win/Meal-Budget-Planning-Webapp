@@ -8,36 +8,52 @@ interface AuthRequest extends Request {
 
 export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
   try {
-    const { weight, height, age, gender, activity_level, fitness_goal } = req.body;
+    const { activity_level, fitness_goal } = req.body;
 
-    // Validate required fields for calculation
-    if (!weight || !height || !age || !gender) {
-      return res.status(400).json({ message: "weight, height, age, and gender are required" });
+    let userSource: any; // can be Mongoose user or plain object
+
+    // Authenticated request → use DB
+    if (req.user?.id) {
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      userSource = user;
+    } 
+    // Public request → use body
+    else {
+      const { weight, height, age, gender } = req.body;
+
+      if (!weight || !height || !age || !gender) {
+        return res.status(400).json({
+          message: "weight, height, age, and gender are required for public requests"
+        });
+      }
+
+      userSource = {
+        weight: Number(weight),
+        height: Number(height),
+        age: Number(age),
+        gender: gender as 'male' | 'female',
+        fitness_goal
+      };
     }
 
-    // Create a temporary user object for calculation (no database lookup needed)
-    const tempUser = {
-      weight: Number(weight),
-      height: Number(height),
-      age: Number(age),
-      gender: gender as 'male' | 'female',
-    } as any;
+    // Calculate macros
+    const {
+      protein_target,
+      fat_target,
+      sugar_target,
+      bmr,
+      tdee
+    } = calculateSpecificMacros(userSource, { activity_level, fitness_goal });
 
-    const { protein_target, fat_target, sugar_target, bmr, tdee } = calculateSpecificMacros(tempUser, { activity_level, fitness_goal });
-
-    // If userId is provided, update and save the user document
-    const userId = req.body.userId || req.user?.id;
-    if (userId) {
-      const user = await User.findById(userId);
-      if (user) {
-        if (weight) user.weight = weight;
-        if (height) user.height = height;
-        if (age) user.age = age;
-        user.macro_targets.protein = protein_target;
-        user.macro_targets.fat = fat_target;
-        user.macro_targets.sugar = sugar_target;
-        await user.save();
-      }
+    // Save only for authenticated users
+    if (req.user?.id) {
+      userSource.macro_targets.protein = protein_target;
+      userSource.macro_targets.fat = fat_target;
+      userSource.macro_targets.sugar = sugar_target;
+      await userSource.save();
     }
 
     return res.status(200).json({
