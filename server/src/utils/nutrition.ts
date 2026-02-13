@@ -27,21 +27,6 @@ export const calculateSpecificMacros = (user: IUser, options?: { activity_level?
   // TDEE(Maintenance Calories) Calculation
   const tdee = bmr * activityFactor;
 
-  // 2. PROTEIN TARGET (Bodyweight * k)
-  let k_multiplier = 1.2;
-
-  switch (activity_level) {
-    case 'Sedentary':        k_multiplier = 1.2; break;
-    case 'Lightly Active':   k_multiplier = 1.375; break;
-    case 'Moderately Active':k_multiplier = 1.55; break;
-    case 'Very Active':      k_multiplier = 1.725; break;
-    case 'Extremely Active': k_multiplier = 1.9; break;
-    default:                 k_multiplier = 1.2;
-  }
-
-  const fitness_goal = options?.fitness_goal ?? 'Maintenance';
-  
-
   let totalDailyCalories: number; 
   let proteinK: number;           
   let fatPercentage: number;      
@@ -83,7 +68,6 @@ export const calculateSpecificMacros = (user: IUser, options?: { activity_level?
 // Sugar (g) = (Total Calories * Sugar%) / 4 kcal/g
   const sugar_calories = totalDailyCalories * sugarPercentage;
   const sugar_target = Math.round(sugar_calories / 4);
-
 
   return {
     bmr: Math.round(bmr),
