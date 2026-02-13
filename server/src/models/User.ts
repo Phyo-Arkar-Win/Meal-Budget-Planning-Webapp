@@ -28,6 +28,8 @@ const UserSchema: Schema = new Schema({
   age: { type: Number, required: true },
   weight: { type: Number, required: true },
   height: { type: Number, required: true },
+  fitness_goal: {type: String,default: null},
+  activity_level: {type: String,default: null},
   macro_targets: {
     daily_cal: { type: Number},
     carbohydrate: { type: Number},

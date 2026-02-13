@@ -42,8 +42,15 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
     }
 
     // Calculate macros
-    const { protein_target, fat_target, sugar_target, carb_target, bmr, tdee, totalDailyCalories } =
-      calculateSpecificMacros(userSource, { activity_level, fitness_goal });
+    const {
+      protein_target,
+      fat_target,
+      sugar_target,
+      carb_target,
+      bmr,
+      tdee,
+      totalDailyCalories,
+    } = calculateSpecificMacros(userSource, { activity_level, fitness_goal });
 
     // Save only for authenticated users
     if (req.user?.id) {
@@ -52,6 +59,9 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
       userSource.macro_targets.protein = protein_target;
       userSource.macro_targets.fat = fat_target;
       userSource.macro_targets.sugar = sugar_target;
+
+      if (fitness_goal) userSource.fitness_goal = fitness_goal;
+      if (activity_level) userSource.activity_level = activity_level;
       await userSource.save();
     }
 
@@ -61,7 +71,7 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
         bmr,
         tdee,
         daily_cal: totalDailyCalories,
-        carbohydrate: carb_target, 
+        carbohydrate: carb_target,
         protein: protein_target,
         fat: fat_target,
         sugar: sugar_target,
