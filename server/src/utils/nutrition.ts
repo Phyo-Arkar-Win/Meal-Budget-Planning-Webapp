@@ -6,13 +6,14 @@ type ActivityLevel =
   | "Moderately Active"
   | "Very Active"
   | "Extremely Active";
+
 type FitnessGoal = "Weight Loss" | "Maintenance" | "Muscle Gain";
 
 export const calculateSpecificMacros = (
   user: IUser,
-  options?: { activity_level?: ActivityLevel; fitness_goal?: FitnessGoal },
+  options?: { activity_level?: ActivityLevel; fitness_goal?: FitnessGoal }
 ) => {
-  // TDEE for Fat/Sugar
+  // 1) BMR (Mifflin-St Jeor)
   let bmr: number;
   if (user.gender === "male") {
     bmr = 10 * user.weight + 6.25 * user.height - 5 * user.age + 5;
@@ -20,6 +21,7 @@ export const calculateSpecificMacros = (
     bmr = 10 * user.weight + 6.25 * user.height - 5 * user.age - 161;
   }
 
+  // 2) TDEE
   const activityMultipliers: Record<ActivityLevel, number> = {
     Sedentary: 1.2,
     "Lightly Active": 1.375,
@@ -29,15 +31,17 @@ export const calculateSpecificMacros = (
   };
 
   const activity_level = options?.activity_level ?? "Sedentary";
-  const activityFactor = activityMultipliers[activity_level] || 1.2;
+  const activityFactor = activityMultipliers[activity_level] ?? 1.2;
   const tdee = bmr * activityFactor;
 
+  // 3) Goal settings (Calories, Protein k, Fat %, Sugar %)
+  // Note: your switch uses user.fitness_goal; we keep it as-is.
   let totalDailyCalories: number;
   let proteinK: number;
   let fatPercentage: number;
   let sugarPercentage: number;
 
-  const goal = options?.fitness_goal ?? user.fitness_goal ?? "Maintenance";
+  const goal = options?.fitness_goal ?? user.fitness_goal ?? 'Maintenance';
 
   switch (goal) {
     case "Muscle Gain":
@@ -63,23 +67,30 @@ export const calculateSpecificMacros = (
       break;
   }
 
-  // Protein (g) = W x k -- 4 kcal/g
+  // 4) Protein (g) = W * k ; 4 kcal/g
   const protein_target = Math.round(user.weight * proteinK);
-  const protein_calories = Math.round(protein_target * 4);
 
-  // Fat (g) = (Total Calories * Fat%) / 9 kcal/g
+  // 5) Fat (g) = (Total Calories * Fat%) / 9 kcal/g
   const fat_calories = totalDailyCalories * fatPercentage;
   const fat_target = Math.round(fat_calories / 9);
 
-  // Sugar (g) = (Total Calories * Sugar%) / 4 kcal/g
+  // 6) Sugar (g) = (Total Calories * Sugar%) / 4 kcal/g
   const sugar_calories = totalDailyCalories * sugarPercentage;
   const sugar_target = Math.round(sugar_calories / 4);
+
+  // 7) Carbs (g) = Remaining calories / 4 kcal/g
+  // IMPORTANT: Sugar is part of carbs, so we do NOT subtract sugar separately.
+  const used_calories = protein_target * 4 + fat_target * 9;
+  const carb_calories = totalDailyCalories - used_calories;
+  const carb_target = Math.max(0, Math.round(carb_calories / 4));
 
   return {
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
+    totalDailyCalories: Math.round(totalDailyCalories),
     protein_target,
     fat_target,
     sugar_target,
+    carb_target,
   };
 };
