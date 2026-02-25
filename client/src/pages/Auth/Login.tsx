@@ -1,16 +1,17 @@
+// client/src/pages/Auth/Login.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { loginUser } from "../../api/authApi";
+import type { LoginCredentials } from "../../types/auth";
 
 const Login = () => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LoginCredentials>({
     email: "",
     password: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const API_URL = import.meta.env.VITE_API_URL;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -25,23 +26,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      let data = null;
-      if (res.headers.get("content-type")?.includes("application/json")) {
-        data = await res.json();
-      }
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Login failed");
-      }
-
+      const data = await loginUser(formData);
       console.log("Login success:", data);
       // TODO: save token (localStorage) & redirect later
     } catch (err: any) {
@@ -52,7 +37,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-slate-100 px-4">
       <div className="w-full max-w-4xl bg-white rounded-2xl shadow-lg grid grid-cols-1 md:grid-cols-2 overflow-hidden">
 
         {/* Left Branding */}

@@ -1,10 +1,11 @@
+// client/src/pages/Auth/Signup.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { signupUser } from "../../api/authApi";
+import type { SignupCredentials } from "../../types/auth";
 
 const Signup = () => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SignupCredentials>({
     username: "",
     email: "",
     password: "",
@@ -18,9 +19,7 @@ const Signup = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -33,49 +32,20 @@ const Signup = () => {
     setSuccess("");
     setLoading(true);
 
-
     const age = Number(formData.age);
     const weight = Number(formData.weight);
     const height = Number(formData.height);
 
     if (age <= 0 || weight <= 0 || height <= 0) {
-        alert("Age, weight, and height must be greater than 0");
-        return;
+      alert("Age, weight, and height must be greater than 0");
+      setLoading(false);
+      return;
     }
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/auth/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...formData,
-            age: Number(formData.age),
-            weight: Number(formData.weight),
-            height: Number(formData.height),
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Signup failed");
-      }
-
+      await signupUser(formData);
       setSuccess("Account created successfully 🎉");
-      setFormData({
-        username: "",
-        email: "",
-        password: "",
-        gender: "",
-        age: "",
-        weight: "",
-        height: "",
-      });
+      setFormData({ username: "", email: "", password: "", gender: "", age: "", weight: "", height: "" });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -84,7 +54,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-slate-100 px-4">
       <div className="w-full max-w-4xl bg-white rounded-2xl shadow-lg grid grid-cols-1 md:grid-cols-2 overflow-hidden">
 
         {/* Left side (Branding) */}
