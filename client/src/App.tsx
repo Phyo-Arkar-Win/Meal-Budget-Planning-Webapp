@@ -1,7 +1,8 @@
 // client/src/App.tsx
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom"; // Removed Navigate
 import Signup from "./pages/Auth/Signup";
 import Login from "./pages/Auth/Login";
+import Home from "./pages/Dashboard/Home";
 
 function App() {
   return (
@@ -9,12 +10,12 @@ function App() {
       <div className="flex min-h-screen flex-col">
         <main className="flex-1">
           <Routes>
-            {/* Default route */}
-            <Route path="/" element={<Navigate to="/signup" replace />} />
-
             {/* Auth routes */}
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
+            
+            {/* The Home page is now the default "/" route */}
+            <Route path="/" element={<Home />} />
 
             {/* 404 fallback */}
             <Route

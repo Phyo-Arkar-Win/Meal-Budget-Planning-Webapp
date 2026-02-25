@@ -1,10 +1,12 @@
 // client/src/pages/Auth/Signup.tsx
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { signupUser } from "../../api/authApi";
 import type { SignupCredentials } from "../../types/auth";
 
+
 const Signup = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<SignupCredentials>({
     username: "",
     email: "",
@@ -43,9 +45,14 @@ const Signup = () => {
     }
 
     try {
-      await signupUser(formData);
+      const data = await signupUser(formData);
+
       setSuccess("Account created successfully 🎉");
       setFormData({ username: "", email: "", password: "", gender: "", age: "", weight: "", height: "" });
+
+      localStorage.setItem("token", data.token); 
+
+      navigate("/"); 
     } catch (err: any) {
       setError(err.message);
     } finally {

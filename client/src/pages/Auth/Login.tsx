@@ -1,10 +1,12 @@
 // client/src/pages/Auth/Login.tsx
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../../api/authApi";
 import type { LoginCredentials } from "../../types/auth";
 
+
 const Login = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<LoginCredentials>({
     email: "",
     password: "",
@@ -26,9 +28,12 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const data = await loginUser(formData);
-      console.log("Login success:", data);
-      // TODO: save token (localStorage) & redirect later
+    const data = await loginUser(formData);
+    console.log("Login success:", data);
+    // Save token to localStorage
+    localStorage.setItem("token", data.token); 
+    // Redirect to Home
+    navigate("/");
     } catch (err: any) {
       setError(err.message);
     } finally {
