@@ -82,3 +82,52 @@ export const updateMacroTargets = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: "Server error calculating macros" });
   }
 };
+
+export const getUserProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    // Find user by ID attached by auth middleware
+    const user = await User.findById(req.user?.id).select("-password");
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      message: "Profile fetched successfully",
+      data: user
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error fetching profile" });
+  }
+};
+
+export const updateUserProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user?.id).select("-password");
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Extract allowed fields to update from the request body
+    const { username, age, weight, height, fitness_goal, activity_level } = req.body;
+
+    // Update fields if they are provided
+    if (username) user.username = username;
+    if (age) user.age = age;
+    if (weight) user.weight = weight;
+    if (height) user.height = height;
+    if (fitness_goal) user.fitness_goal = fitness_goal;
+
+    await user.save();
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      data: user
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error updating profile" });
+  }
+};
