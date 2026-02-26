@@ -1,31 +1,21 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import Signup from "./components/signup";
-import Login from "./components/login";
-// import Login from "./pages/Login";
-// import Dashboard from "./pages/Dashboard";
+// client/src/App.tsx
+import { Routes, Route } from "react-router-dom"; // Removed Navigate
+import Signup from "./pages/Auth/Signup";
+import Login from "./pages/Auth/Login";
+import Home from "./pages/Dashboard/Home";
 
 function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      
-      {/* App Container */}
       <div className="flex min-h-screen flex-col">
-
-        {/* Page Content */}
         <main className="flex-1">
           <Routes>
-
-            {/* Default route */}
-            <Route path="/" element={<Navigate to="/signup" replace />} />
-
             {/* Auth routes */}
             <Route path="/signup" element={<Signup />} />
-            {/* <Route path="/login" element={<Login />} /> */}
-
             <Route path="/login" element={<Login />} />
-
-            {/* Protected routes (future) */}
-            {/* <Route path="/dashboard" element={<Dashboard />} /> */}
+            
+            {/* The Home page is now the default "/" route */}
+            <Route path="/" element={<Home />} />
 
             {/* 404 fallback */}
             <Route
@@ -41,7 +31,6 @@ function App() {
             />
           </Routes>
         </main>
-
       </div>
     </div>
   );
