@@ -4,6 +4,9 @@ import Signup from "./pages/Auth/Signup";
 import Login from "./pages/Auth/Login";
 import Home from "./pages/Dashboard/Home";
 import EditProfile from "./pages/Profile/EditProfile";
+import FoodDatabase from "./pages/Food/FoodDatabase";
+import FoodDetail from "./pages/Food/FoodDetail";
+import AddFood from "./pages/Food/AddFood";
 
 function App() {
   return (
@@ -17,7 +20,11 @@ function App() {
             
             {/* The Home page is now the default "/" route */}
             <Route path="/" element={<Home />} />
-            <Route path="/profile" element={<EditProfile />} /> {/* <-- Add this! */}
+
+            <Route path="/profile" element={<EditProfile />} /> 
+            <Route path="/food" element={<FoodDatabase />} />
+            <Route path="/food/:id" element={<FoodDetail />} />
+            <Route path="/food/add" element={<AddFood />} />
 
             {/* 404 fallback */}
             <Route
