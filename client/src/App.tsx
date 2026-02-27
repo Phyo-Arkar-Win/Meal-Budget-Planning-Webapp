@@ -1,8 +1,9 @@
 // client/src/App.tsx
-import { Routes, Route } from "react-router-dom"; // Removed Navigate
+import { Routes, Route } from "react-router-dom"; 
 import Signup from "./pages/Auth/Signup";
 import Login from "./pages/Auth/Login";
 import Home from "./pages/Dashboard/Home";
+import EditProfile from "./pages/Profile/EditProfile";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
             
             {/* The Home page is now the default "/" route */}
             <Route path="/" element={<Home />} />
+            <Route path="/profile" element={<EditProfile />} /> {/* <-- Add this! */}
 
             {/* 404 fallback */}
             <Route

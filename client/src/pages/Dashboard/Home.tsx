@@ -112,6 +112,7 @@ const Home = () => {
           {/* Quick stats */}
           <div className="flex flex-col mb-8 fu d2">
             {[
+              { label: "Sex",      value: user?.gender   || "—" },
               { label: "Weight",   value: user?.weight   ? `${user.weight} kg`   : "—" },
               { label: "Height",   value: user?.height   ? `${user.height} cm`   : "—" },
               { label: "Goal",     value: user?.fitness_goal    || "Not set" },
