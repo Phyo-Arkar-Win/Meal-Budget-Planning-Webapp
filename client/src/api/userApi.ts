@@ -20,14 +20,13 @@ export const fetchUserProfile = async (token: string) => {
   return data.data; // Returning the user object from your controller
 };
 
-export const updateUserProfile = async (token: string, profileData: any) => {
+export const updateUserProfile = async (token: string, profileData: FormData) => {
   const res = await fetch(`${API_URL}/api/user/profile`, {
     method: "PUT",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(profileData),
+    body: profileData,
   });
 
   const data = await res.json();

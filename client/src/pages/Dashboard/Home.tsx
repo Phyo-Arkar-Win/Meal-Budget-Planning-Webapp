@@ -85,8 +85,14 @@ const Home = () => {
 
           {/* Avatar + name + edit + logout */}
           <div className="flex flex-col items-center text-center mb-8 fu d1">
-            <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none">
-              {initial}
+            <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none overflow-hidden">
+              {user?.profile_picture ? (
+                <img
+                  src={user.profile_picture}
+                  alt={`${user.username}'s avatar`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (initial)}
             </div>
             <p className="serif text-xl text-white leading-tight">{user?.username || "User"}</p>
             <p className="text-stone-500 text-xs mt-0.5 truncate w-full text-center">{user?.email || ""}</p>
