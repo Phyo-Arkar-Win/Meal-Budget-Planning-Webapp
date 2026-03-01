@@ -13,6 +13,7 @@ const EditProfile = () => {
 
   // Profile picture preview state
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
     username: "",
@@ -43,6 +44,9 @@ const EditProfile = () => {
           fitness_goal: user.fitness_goal || "Maintenance",
           activity_level: user.activity_level || "Sedentary",
         });
+        if (user.profile_picture) {
+          setAvatarPreview(user.profile_picture);
+        }
       } catch (err) {
         console.error("Failed to load profile", err);
         navigate("/login");
@@ -61,13 +65,14 @@ const EditProfile = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const imageUrl = URL.createObjectURL(file);
       setAvatarPreview(imageUrl);
       // Note: When the backend is ready, you will save 'file' to a FormData object here!
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSaving(true);
@@ -76,14 +81,20 @@ const EditProfile = () => {
     try {
       if (!token) throw new Error("No token found");
 
-      await updateUserProfile(token, {
-        username: formData.username,
-        age: Number(formData.age),
-        weight: Number(formData.weight),
-        height: Number(formData.height),
-        fitness_goal: formData.fitness_goal,
-        activity_level: formData.activity_level,
-      });
+      const submitData = new FormData();
+
+      submitData.append("username", formData.username);
+      submitData.append("age", formData.age.toString());
+      submitData.append("weight", formData.weight.toString());
+      submitData.append("height", formData.height.toString());
+      submitData.append("fitness_goal", formData.fitness_goal);
+      submitData.append("activity_level", formData.activity_level);
+
+      if (selectedFile) {
+        submitData.append("profile_picture", selectedFile);
+      }
+
+      await updateUserProfile(token, submitData);
 
       await calculateMacros(token, {
         activity_level: formData.activity_level,
