@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import User from "../models/User";
 import { calculateSpecificMacros } from "../utils/nutrition";
+import { v2 as cloudinary } from 'cloudinary';
 
 interface AuthRequest extends Request {
   user?: { id: string };
@@ -110,6 +111,27 @@ export const updateUserProfile = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (req.file) {
+      if (user.profile_picture) {
+        try {
+          const urlParts = user.profile_picture.split('/');
+          const filenameWithExtension = urlParts.pop(); 
+          const folderName = urlParts.pop(); 
+          if (filenameWithExtension && folderName) {
+            const filename = filenameWithExtension.split('.')[0]; 
+            const publicId = `${folderName}/${filename}`; 
+
+            await cloudinary.uploader.destroy(publicId);
+            console.log(`Deleted old image: ${publicId}`);
+          }
+        } catch (cloudinaryError) {
+          console.error("Failed to delete old image :", cloudinaryError);
+        }
+      }
+
+        user.profile_picture = req.file.path;
+    }
+
     // Extract allowed fields to update from the request body
     const { username, age, weight, height, fitness_goal, activity_level } = req.body;
 
@@ -129,5 +151,5 @@ export const updateUserProfile = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Server error updating profile" });
-  }
+ }
 };

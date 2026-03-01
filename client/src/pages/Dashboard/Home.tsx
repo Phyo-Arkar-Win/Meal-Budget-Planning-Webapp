@@ -85,8 +85,14 @@ const Home = () => {
 
           {/* Avatar + name + edit + logout */}
           <div className="flex flex-col items-center text-center mb-8 fu d1">
-            <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none">
-              {initial}
+            <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none overflow-hidden">
+              {user?.profile_picture ? (
+                <img
+                  src={user.profile_picture}
+                  alt={`${user.username}'s avatar`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (initial)}
             </div>
             <p className="serif text-xl text-white leading-tight">{user?.username || "User"}</p>
             <p className="text-stone-500 text-xs mt-0.5 truncate w-full text-center">{user?.email || ""}</p>
@@ -112,6 +118,7 @@ const Home = () => {
           {/* Quick stats */}
           <div className="flex flex-col mb-8 fu d2">
             {[
+              { label: "Sex",      value: user?.gender   || "—" },
               { label: "Weight",   value: user?.weight   ? `${user.weight} kg`   : "—" },
               { label: "Height",   value: user?.height   ? `${user.height} cm`   : "—" },
               { label: "Goal",     value: user?.fitness_goal    || "Not set" },
@@ -126,7 +133,7 @@ const Home = () => {
 
           {/* Nav */}
           <nav className="flex flex-col gap-1 mt-auto fu d3">
-            <Link to="/menu" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
+            <Link to="/food" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
               </svg>
@@ -153,7 +160,7 @@ const Home = () => {
           {/* Mobile top bar */}
           <div className="md:hidden bg-stone-900 px-5 pt-10 pb-5">
             <div className="flex items-center justify-between fu">
-              <Link to="/menu" className="flex flex-col items-center gap-1 text-stone-400 hover:text-amber-400 transition">
+              <Link to="/food" className="flex flex-col items-center gap-1 text-stone-400 hover:text-amber-400 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
                 </svg>
@@ -240,7 +247,7 @@ const Home = () => {
                     <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-1">Daily Calories</p>
                     <p className="serif text-3xl text-amber-400">
                       {macros?.daily_cal ? Math.round(macros.daily_cal).toLocaleString() : "—"}
-                      <span className="text-sm font-sans font-normal text-white/55 ml-2">calories</span>
+                      <span className="text-sm font-sans font-normal text-white/55 ml-2">kcal</span>
                     </p>
                   </div>
                 </div>

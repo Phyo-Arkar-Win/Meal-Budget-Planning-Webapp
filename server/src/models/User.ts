@@ -4,6 +4,7 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
+  profile_picture: string;
   gender: 'male' | 'female';
   age: number;
   weight: number;
@@ -25,6 +26,7 @@ const UserSchema: Schema = new Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  profile_picture: { type: String, default: ""},
   gender: { type: String, required: true },
   age: { type: Number, required: true },
   weight: { type: Number, required: true },
