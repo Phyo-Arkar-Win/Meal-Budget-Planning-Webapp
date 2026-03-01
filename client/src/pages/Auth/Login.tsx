@@ -170,7 +170,7 @@ const Login = () => {
               <span className="serif text-lg text-stone-800 tracking-wide">MealBudget</span>
             </div>
 
-            <h1 className="serif text-3xl text-stone-900 mb-1 fu">Sign in</h1>
+            <h1 className="serif text-3xl text-stone-900 mb-1 fu">Login</h1>
             <p className="text-stone-400 text-sm mb-7 fu d1">Enter your credentials to access your dashboard.</p>
 
             {error && (
@@ -202,7 +202,7 @@ const Login = () => {
             </div>
 
             <div className="divider fu d2 mb-5">
-              <span className="text-stone-400 text-xs">or sign in with email</span>
+              <span className="text-stone-400 text-xs">or login with email</span>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
