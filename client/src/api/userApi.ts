@@ -19,3 +19,36 @@ export const fetchUserProfile = async (token: string) => {
 
   return data.data; // Returning the user object from your controller
 };
+
+export const updateUserProfile = async (token: string, profileData: FormData) => {
+  const res = await fetch(`${API_URL}/api/user/profile`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: profileData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Failed to update profile");
+  }
+  return data.data;
+};
+
+export const calculateMacros = async (token: string, calcData: any) => {
+  const res = await fetch(`${API_URL}/api/user/calculate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(calcData),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Failed to recalculate macros");
+  }
+  return data.data;
+};
