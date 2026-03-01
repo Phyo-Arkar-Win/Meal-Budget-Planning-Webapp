@@ -1,3 +1,4 @@
+// server/src/models/Food.ts
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IFood extends Document {
