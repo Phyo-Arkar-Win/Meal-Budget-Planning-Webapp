@@ -1,8 +1,8 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export interface IUser extends Document{
+export interface IFood extends Document {
   name: string;
-  price: string;
+  price: number;
   canteen: string;
   picture: string;
   macros: {
@@ -16,9 +16,9 @@ export interface IUser extends Document{
 
 const FoodSchema: Schema = new Schema({
   name: { type: String, required: true },
-  price: { type: String, required: true },
+  price: { type: Number, required: true },
   canteen: { type: String, required: true },
-  picture: { type: String },
+  picture: { type: String, default: "" },
   macros: {
     calories: { type: Number, required: true },
     carbs: { type: Number, required: true },
@@ -29,3 +29,5 @@ const FoodSchema: Schema = new Schema({
 }, {
   timestamps: true,
 });
+
+export default mongoose.model<IFood>('Food', FoodSchema);

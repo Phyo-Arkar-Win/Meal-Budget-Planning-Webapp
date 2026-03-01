@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
+import { OAuth2Client } from "google-auth-library";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const signup = async (req: Request, res: Response) => {
   const { username, email, password, gender, age, weight, height } = req.body;
@@ -25,6 +28,7 @@ export const signup = async (req: Request, res: Response) => {
   res.status(201).json({ message: "User created" });
 };
 
+// Manual Login
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -43,3 +47,37 @@ export const login = async (req: Request, res: Response) => {
 
   res.json({ token });
 };
+
+// Google Login
+export const googleLogin = async (req: Request, res: Response) => {
+
+  const { token } = req.body;
+
+  try{
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(400).json({ message: "Invalid Google token" });
+    }
+    const { email, name, sub: googleId, picture } = payload;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        username: email?.split("@")[0],
+        email,
+        googleId,
+        profile_picture: picture,
+      });
+    }
+  }catch (error) {
+    console.error("Google Login Error:", error);
+    return res.status(500).json({ message: "Google login failed" });
+  }
+
+}
