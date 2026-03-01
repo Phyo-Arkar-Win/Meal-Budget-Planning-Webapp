@@ -10,6 +10,7 @@ export interface IUser extends Document {
   weight: number;
   height: number;
   fitness_goal: string;
+  activity_level: string;
   macro_targets: {
     daily_cal: number;
     carbohydrate: number;
