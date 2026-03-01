@@ -14,3 +14,10 @@ export interface SignupCredentials {
   weight: number | string;
   height: number | string;
 }
+
+export interface CompleteProfileData {
+  gender: string;
+  age: number | string;
+  weight: number | string;
+  height: number | string;
+}
