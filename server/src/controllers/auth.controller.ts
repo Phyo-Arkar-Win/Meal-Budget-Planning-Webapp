@@ -2,12 +2,12 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
+import { AuthRequest } from "../middleware/auth.middleware";
 
-// sign JWT
 const signToken = (userId: string) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET as string, { expiresIn: "1d" });
 
-// Manual Signup
+// Manual Signup 
 export const signup = async (req: Request, res: Response) => {
   const { username, email, password, gender, age, weight, height } = req.body;
 
@@ -16,15 +16,8 @@ export const signup = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "User already exists" });
 
   const hashedPassword = await bcrypt.hash(password, 10);
-
   const user = await User.create({
-    username,
-    email,
-    password: hashedPassword,
-    gender,
-    age,
-    weight,
-    height,
+    username, email, password: hashedPassword, gender, age, weight, height,
   });
 
   const token = signToken(String(user._id));
@@ -48,71 +41,76 @@ export const login = async (req: Request, res: Response) => {
 };
 
 // Google Login / Signup
-// accepts access_token, fetches user info from Google's userinfo endpoint.
-// No verifyIdToken needed — zero impact on auth.middleware.ts or any
-// protected route. The JWT we issue is identical to the manual login JWT.
 export const googleLogin = async (req: Request, res: Response) => {
   const { token } = req.body;
 
   try {
-    // Fetch user info from Google using the access_token
     const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    if (!userInfoRes.ok) {
+    if (!userInfoRes.ok)
       return res.status(400).json({ message: "Invalid Google token" });
-    }
 
     const payload = await userInfoRes.json();
     const { email, name, sub: googleId, picture } = payload;
 
-    if (!email) {
+    if (!email)
       return res.status(400).json({ message: "Could not retrieve email from Google" });
-    }
 
-    // Look up existing user by email (handles account linking)
-    // If the user previously signed up manually, this finds their account and
-    // attaches the googleId — same account, works with both login methods.
     let user = await User.findOne({ email });
     let isNewUser = false;
 
     if (!user) {
-      // create with Google info, personal details filled later
-      const dummyPassword = await bcrypt.hash(googleId, 10);
-
+      const tempPassword = await bcrypt.hash(googleId, 10);
       user = await User.create({
-        username: name || email.split("@")[0],
+        username:        name || email.split("@")[0],
         email,
         googleId,
-        password: dummyPassword,
+        password:        tempPassword,
         profile_picture: picture || "",
+        // Required schema fields — all overwritten at /complete-profile
         gender: "male",
-        age: 0,
-        weight: 0,
-        height: 0,
+        age:    1,
+        weight: 1,
+        height: 1,
       });
       isNewUser = true;
     } else {
-      // Existing user (manual or Google) — attach googleId and picture if missing
-      if (!user.googleId) {
-        user.googleId = googleId;
-      }
-      if (!user.profile_picture && picture) {
-        user.profile_picture = picture;
-      }
+      // Existing user (manual signup) — link Google, keep their real password
+      if (!user.googleId) user.googleId = googleId;
+      if (!user.profile_picture && picture) user.profile_picture = picture;
       await user.save();
-      // isNewUser stays false → frontend redirects straight to /
     }
 
     const jwtToken = signToken(String(user._id));
-
-    // isNewUser: true  → frontend redirects to /complete-profile
-    // isNewUser: false → frontend redirects to /
+    // isNewUser: true  → frontend sends to /complete-profile to set real password + info
+    // isNewUser: false → frontend sends to /
     res.json({ token: jwtToken, isNewUser });
 
   } catch (error) {
     console.error("Google Login Error:", error);
     return res.status(500).json({ message: "Google login failed" });
   }
+};
+
+// Change Password (from EditProfile page)
+export const changePassword = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.id;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 6)
+    return res.status(400).json({ message: "New password must be at least 6 characters." });
+
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch)
+    return res.status(400).json({ message: "Current password is incorrect." });
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  await user.save();
+
+  res.json({ message: "Password changed successfully." });
 };
