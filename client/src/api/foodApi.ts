@@ -1,12 +1,25 @@
 // client/src/api/foodApi.ts
+import type { Food } from "../types/plan";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
-export const fetchAllFoods = async (token: string, filters?: any) => {
-  // In the future, you will pass your filters to the backend query string here
-  const res = await fetch(`${API_URL}/api/food`, {
-    headers: { Authorization: `Bearer ${token}` },
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+});
+
+// search and canteen are optional — calling with no args fetches all foods
+export const searchFoods = async (
+  search?: string,
+  canteen?: string
+): Promise<Food[]> => {
+  const params = new URLSearchParams();
+  if (search)  params.append("search",  search);
+  if (canteen) params.append("canteen", canteen);
+
+  const res = await fetch(`${API_URL}/api/foods?${params.toString()}`, {
+    headers: authHeaders(),
   });
-  if (!res.ok) throw new Error("Failed to fetch foods");
   const data = await res.json();
-  return data.data; // Assumes your backend returns { data: [...] }
+  if (!res.ok) throw new Error(data.message || "Failed to fetch foods");
+  return data;
 };
