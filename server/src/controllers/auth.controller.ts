@@ -69,11 +69,6 @@ export const googleLogin = async (req: Request, res: Response) => {
         googleId,
         password:        tempPassword,
         profile_picture: picture || "",
-        // Required schema fields — all overwritten at /complete-profile
-        gender: "male",
-        age:    1,
-        weight: 1,
-        height: 1,
       });
       isNewUser = true;
     } else {
