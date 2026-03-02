@@ -20,7 +20,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
-app.use('/api/food', foodRoutes)
+app.use('/api/foods', foodRoutes)
 app.use('/api/plans', planRoutes);
 app.use('/api/progress', dailyProgressRoutes); // 2. ADD THIS ROUTE
 app.use('/api/reviews', reviewRoutes)

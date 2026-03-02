@@ -1,23 +1,25 @@
 // client/src/pages/Plan/CreatePlan.tsx
-// Orchestrator only — all step UI lives in ./steps/Step*.tsx
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { fetchUserProfile } from "../../api/userApi";
 import { createPlan } from "../../api/planApi";
 import type { Food, MacroPreview, Priority } from "../../types/plan";
 
-import { Step1GoalActivity, Step2Settings, Step3AddFoods, Step4Review } from './steps';
+import { Step1GoalActivity, Step2Settings, Step3AddFoods, Step4Review } from "./steps";
 
-const TOTAL_STEPS  = 4;
-const STEP_LABELS  = ["Goal & Activity", "Plan Settings", "Add Foods", "Review"];
+const TOTAL_STEPS = 4;
+const STEP_LABELS = ["Goal & Activity", "Plan Settings", "Add Foods", "Review"];
+
+const fmt    = (n: number) => Math.round(n).toLocaleString();
+const fmtDec = (n: number) => n.toFixed(1);
 
 export default function CreatePlan() {
   const navigate = useNavigate();
 
-  // Step state
   const [step, setStep] = useState(1);
 
   // Step 1
+  const [planName,      setPlanName]      = useState("");         // Fix #2
   const [fitnessGoal,   setFitnessGoal]   = useState("Maintenance");
   const [activityLevel, setActivityLevel] = useState("Sedentary");
   const [macros,        setMacros]        = useState<MacroPreview | null>(null);
@@ -35,7 +37,6 @@ export default function CreatePlan() {
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
 
-  // Load user defaults on mount
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
@@ -49,9 +50,8 @@ export default function CreatePlan() {
     load();
   }, [navigate]);
 
-  // Step validation
   const canProceed = () => {
-    if (step === 1) return !!macros;
+    if (step === 1) return !!macros && planName.trim().length > 0;
     if (step === 2) {
       if (!duration || Number(duration) < 1) return false;
       if (priority === "budget" && (!budgetLimit || Number(budgetLimit) <= 0)) return false;
@@ -68,6 +68,7 @@ export default function CreatePlan() {
     setError(""); setSubmitting(true);
     try {
       await createPlan({
+        name:           planName.trim(),       // Fix #2
         fitness_goal:   fitnessGoal,
         activity_level: activityLevel,
         priority,
@@ -82,49 +83,39 @@ export default function CreatePlan() {
     }
   };
 
-  // ── Shared CSS injected once ────────────────────────────────────────────────
+  // Running totals for mobile bar and sidebar
+  const totals = selectedFoods.reduce(
+    (acc, f) => ({ calories: acc.calories + f.macros.calories, price: acc.price + f.price }),
+    { calories: 0, price: 0 }
+  );
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
         .cp-root { font-family: 'DM Sans', sans-serif; }
         .serif   { font-family: 'DM Serif Display', serif; }
-
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(20px); }
           to   { opacity: 1; transform: translateX(0); }
         }
         .slide-in { animation: slideIn 0.3s ease both; }
-
         .pill-btn {
-          padding: 8px 18px;
-          border-radius: 99px;
-          font-size: 13px;
-          font-weight: 600;
-          border: 1.5px solid #e7e5e4;
-          background: #fafaf9;
-          color: #78716c;
-          cursor: pointer;
-          transition: all 0.18s;
-          font-family: 'DM Sans', sans-serif;
+          padding: 8px 18px; border-radius: 99px; font-size: 13px; font-weight: 600;
+          border: 1.5px solid #e7e5e4; background: #fafaf9; color: #78716c;
+          cursor: pointer; transition: all 0.18s; font-family: 'DM Sans', sans-serif;
         }
         .pill-btn:hover  { border-color: #d6d3d1; background: #f5f5f4; }
         .pill-btn.active { background: #1c1917; color: #f59e0b; border-color: #1c1917; }
-
         .macro-chip {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          background: #f5f5f4;
-          border-radius: 10px;
-          padding: 8px 12px;
-          min-width: 70px;
+          display: flex; flex-direction: column; align-items: center;
+          background: #f5f5f4; border-radius: 10px; padding: 8px 12px; min-width: 70px;
         }
       `}</style>
 
       <div className="cp-root min-h-screen bg-stone-50 flex">
 
-        {/* ── LEFT PANEL ── */}
+        {/* ── LEFT SIDEBAR (desktop) ── */}
         <div className="hidden md:flex flex-col w-72 bg-stone-900 text-white p-8 relative shrink-0">
           <div className="absolute top-0 right-0 w-48 h-48 bg-amber-400/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -137,6 +128,9 @@ export default function CreatePlan() {
 
           <div className="flex-1">
             <h1 className="serif text-4xl text-amber-400 leading-tight mb-3">New Plan</h1>
+            {planName && (
+              <p className="text-stone-300 text-sm font-medium mb-2 truncate">"{planName}"</p>
+            )}
             <p className="text-stone-400 text-sm leading-relaxed mb-10">
               Build a personalised meal plan with your own calorie targets, budget, and food choices.
             </p>
@@ -144,54 +138,83 @@ export default function CreatePlan() {
             {/* Step list */}
             <div className="flex flex-col gap-3">
               {STEP_LABELS.map((label, i) => {
-                const s    = i + 1;
-                const done = step > s;
-                const cur  = step === s;
+                const s = i + 1; const done = step > s; const cur = step === s;
                 return (
                   <div key={s} className="flex items-center gap-3">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all duration-300"
-                      style={{
-                        background: done ? "#f59e0b" : cur ? "#fff" : "#3d3836",
-                        color:      done ? "#1c1917" : cur ? "#1c1917" : "#78716c",
-                      }}>
+                      style={{ background: done ? "#f59e0b" : cur ? "#fff" : "#3d3836", color: done ? "#1c1917" : cur ? "#1c1917" : "#78716c" }}>
                       {done
-                        ? <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
+                        ? <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                         : s}
                     </div>
                     <span className="text-sm transition-colors duration-300"
-                      style={{ color: cur ? "#fff" : done ? "#f59e0b" : "#78716c" }}>
-                      {label}
-                    </span>
+                      style={{ color: cur ? "#fff" : done ? "#f59e0b" : "#78716c" }}>{label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Macro sidebar card */}
+          {/* Fix #5 — Desktop sidebar: daily targets + budget */}
           {macros && (
             <div className="mt-auto pt-6 border-t border-stone-800">
               <p className="text-xs text-stone-500 uppercase tracking-widest mb-3">Daily Targets</p>
               {[
-                { label: "Calories",  value: `${Math.round(macros.daily_cal).toLocaleString()} kcal`, color: "#f59e0b" },
-                { label: "Protein",   value: `${macros.protein.toFixed(1)}g`,      color: "#86efac" },
-                { label: "Carbs",     value: `${macros.carbohydrate.toFixed(1)}g`, color: "#93c5fd" },
-                { label: "Fat",       value: `${macros.fat.toFixed(1)}g`,          color: "#fca5a5" },
+                { label: "Calories",  value: `${fmt(macros.daily_cal)} kcal`, color: "#f59e0b" },
+                { label: "Protein",   value: `${fmtDec(macros.protein)}g`,    color: "#86efac" },
+                { label: "Carbs",     value: `${fmtDec(macros.carbohydrate)}g`, color: "#93c5fd" },
+                { label: "Fat",       value: `${fmtDec(macros.fat)}g`,        color: "#fca5a5" },
               ].map(m => (
                 <div key={m.label} className="flex items-center justify-between mb-1.5">
                   <span className="text-xs text-stone-400">{m.label}</span>
                   <span className="text-xs font-semibold" style={{ color: m.color }}>{m.value}</span>
                 </div>
               ))}
+
+              {/* Budget row — only shown when priority = budget and budgetLimit is set */}
+              {priority === "budget" && budgetLimit && (
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-800">
+                  <span className="text-xs text-stone-400">Budget</span>
+                  <span className={`text-xs font-semibold ${totals.price > Number(budgetLimit) ? "text-red-400" : "text-emerald-400"}`}>
+                    ฿{totals.price.toFixed(0)} / ฿{budgetLimit}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* ── RIGHT PANEL ── */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-5 py-10 md:px-10">
+
+          {/* Fix #6 — Mobile sticky targets bar (compact) */}
+          {macros && (
+            <div className="md:hidden sticky top-0 z-20 bg-stone-900 px-4 py-2.5 flex items-center gap-3 overflow-x-auto">
+              {[
+                { label: "Cal",    value: `${fmt(macros.daily_cal)}`,        unit: "kcal", color: "#f59e0b" },
+                { label: "Prot",   value: `${fmtDec(macros.protein)}`,       unit: "g",   color: "#86efac" },
+                { label: "Carbs",  value: `${fmtDec(macros.carbohydrate)}`,  unit: "g",   color: "#93c5fd" },
+                { label: "Fat",    value: `${fmtDec(macros.fat)}`,           unit: "g",   color: "#fca5a5" },
+              ].map(m => (
+                <div key={m.label} className="shrink-0 flex items-center gap-1">
+                  <span className="text-[10px] text-stone-400 uppercase tracking-wide">{m.label}</span>
+                  <span className="text-xs font-bold" style={{ color: m.color }}>{m.value}<span className="text-[9px] text-stone-500 ml-0.5">{m.unit}</span></span>
+                </div>
+              ))}
+
+              {/* Budget on mobile bar too */}
+              {priority === "budget" && budgetLimit && (
+                <div className="shrink-0 flex items-center gap-1 ml-1 pl-2 border-l border-stone-700">
+                  <span className="text-[10px] text-stone-400 uppercase tracking-wide">฿</span>
+                  <span className={`text-xs font-bold ${totals.price > Number(budgetLimit) ? "text-red-400" : "text-emerald-400"}`}>
+                    {totals.price.toFixed(0)}/{budgetLimit}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="max-w-2xl mx-auto px-5 py-8 md:px-10 md:py-10">
 
             {/* Mobile back */}
             <div className="md:hidden mb-6">
@@ -203,7 +226,7 @@ export default function CreatePlan() {
               </Link>
             </div>
 
-            {/* Step bar */}
+            {/* Step progress bar */}
             <div className="flex items-center gap-1.5 mb-8">
               {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map(s => (
                 <div key={s} className="flex items-center gap-1.5 flex-1">
@@ -213,9 +236,7 @@ export default function CreatePlan() {
                       color:      step > s ? "#1c1917" : step === s ? "#f59e0b" : "#a8a29e",
                     }}>
                     {step > s
-                      ? <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                      ? <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                       : s}
                   </div>
                   {s < TOTAL_STEPS && (
@@ -229,10 +250,11 @@ export default function CreatePlan() {
             {/* Step content */}
             {step === 1 && (
               <Step1GoalActivity
-                fitnessGoal={fitnessGoal} activityLevel={activityLevel}
+                planName={planName} fitnessGoal={fitnessGoal} activityLevel={activityLevel}
                 macros={macros} macroLoading={macroLoading}
-                setFitnessGoal={setFitnessGoal} setActivityLevel={setActivityLevel}
-                setMacros={setMacros} setMacroLoading={setMacroLoading}
+                setPlanName={setPlanName} setFitnessGoal={setFitnessGoal}
+                setActivityLevel={setActivityLevel} setMacros={setMacros}
+                setMacroLoading={setMacroLoading}
               />
             )}
             {step === 2 && (
@@ -251,13 +273,14 @@ export default function CreatePlan() {
             )}
             {step === 4 && (
               <Step4Review
+                planName={planName}
                 fitnessGoal={fitnessGoal} activityLevel={activityLevel}
                 priority={priority} budgetLimit={budgetLimit} duration={duration}
                 macros={macros} selectedFoods={selectedFoods} error={error}
               />
             )}
 
-            {/* Navigation buttons */}
+            {/* Nav buttons */}
             <div className="flex gap-3 mt-8">
               {step > 1 && (
                 <button type="button" onClick={() => { setStep(s => s - 1); setError(""); }}

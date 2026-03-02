@@ -5,6 +5,7 @@ const fmt    = (n: number) => Math.round(n).toLocaleString();
 const fmtDec = (n: number) => n.toFixed(1);
 
 interface Props {
+  planName:      string;
   fitnessGoal:   string;
   activityLevel: string;
   priority:      Priority;
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export default function Step4Review({
-  fitnessGoal, activityLevel, priority, budgetLimit, duration,
+  planName, fitnessGoal, activityLevel, priority, budgetLimit, duration,
   macros, selectedFoods, error,
 }: Props) {
 
@@ -39,6 +40,7 @@ export default function Step4Review({
         <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-4">Goal & Settings</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {[
+            { label: "Plan Name",     value: planName || "—" },
             { label: "Fitness Goal",  value: fitnessGoal },
             { label: "Activity",      value: activityLevel },
             { label: "Priority",      value: priority.charAt(0).toUpperCase() + priority.slice(1) },
@@ -74,7 +76,7 @@ export default function Step4Review({
         </div>
       )}
 
-      {/* Food template */}
+      {/* Food list */}
       <div className="bg-white border border-stone-100 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">

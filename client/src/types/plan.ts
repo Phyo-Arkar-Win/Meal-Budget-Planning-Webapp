@@ -29,6 +29,7 @@ export type PlanStatus = "active" | "completed" | "abandoned";
 export interface Plan {
   _id: string;
   owner: string;
+  name: string;
   fitness_goal: string;
   activity_level: string;
   priority: Priority;
@@ -47,10 +48,11 @@ export interface MacroPreview extends MacroTargets {
 }
 
 export interface CreatePlanPayload {
+  name: string;            // Fix #2 — plan name
   fitness_goal: string;
   activity_level: string;
   priority: Priority;
   budget_limit: number | null;
   duration: number;
-  template_menus: string[]; // food _id array
+  template_menus: string[];
 }
