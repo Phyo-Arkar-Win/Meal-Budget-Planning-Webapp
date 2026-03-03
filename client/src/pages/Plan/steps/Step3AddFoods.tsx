@@ -1,6 +1,6 @@
 // client/src/pages/Plan/steps/Step3AddFoods.tsx
 import { useState, useMemo, useEffect } from "react";
-import { searchFoods } from "../../../api/foodApi";
+import { getFoods } from "../../../api/foodApi";
 import type { Food, MacroPreview, Priority } from "../../../types/plan";
 
 const PAGE_SIZE = 6; // cards per page — 2 cols × 3 rows on desktop
@@ -30,7 +30,7 @@ export default function Step3AddFoods({
   useEffect(() => {
     const load = async () => {
       setLoadingFoods(true);
-      try { setAllFoods(await searchFoods()); }
+      try { setAllFoods(await getFoods()); }
       catch { setAllFoods([]); }
       finally { setLoadingFoods(false); }
     };

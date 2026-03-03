@@ -1,4 +1,3 @@
-// client/src/pages/Food/AddFood.tsx
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createFood } from "../../api/foodApi";
@@ -13,15 +12,14 @@ const INITIAL_CANTEENS = [
 const AddFood = () => {
   const navigate = useNavigate();
 
-  // ── Form state ──────────────────────────────────────────────────────────────
   const [foodName, setFoodName] = useState("");
   const [price, setPrice]       = useState("");
 
-  const [canteenList,      setCanteenList]      = useState(INITIAL_CANTEENS);
-  const [selectedCanteen,  setSelectedCanteen]  = useState("");
-  const [canteenSearch,    setCanteenSearch]    = useState("");
-  const [isDropdownOpen,   setIsDropdownOpen]   = useState(false);
-  const [showCanteenModal, setShowCanteenModal] = useState(false);
+  const [canteenList,        setCanteenList]        = useState(INITIAL_CANTEENS);
+  const [selectedCanteen,    setSelectedCanteen]    = useState("");
+  const [canteenSearch,      setCanteenSearch]      = useState("");
+  const [isDropdownOpen,     setIsDropdownOpen]     = useState(false);
+  const [showCanteenModal,   setShowCanteenModal]   = useState(false);
   const [pendingCanteenName, setPendingCanteenName] = useState("");
 
   const [macros, setMacros] = useState({
@@ -32,7 +30,6 @@ const AddFood = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Submission state ─────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
 
@@ -45,10 +42,15 @@ const AddFood = () => {
     }
   };
 
-  // ── Macros ───────────────────────────────────────────────────────────────────
-  const handleMacroChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMacros({ ...macros, [e.target.name]: e.target.value });
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  // ── Macros ───────────────────────────────────────────────────────────────────
+  const handleMacroChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setMacros({ ...macros, [e.target.name]: e.target.value });
 
   // ── Canteen dropdown ─────────────────────────────────────────────────────────
   const handleSelectCanteen = (name: string) => {
@@ -84,7 +86,7 @@ const AddFood = () => {
     c => c.toLowerCase() === canteenSearch.trim().toLowerCase()
   );
 
-  // ── Submit — calls real API ──────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -96,21 +98,21 @@ const AddFood = () => {
 
     setSubmitting(true);
     try {
-      // Image upload to Cloudinary is not wired yet — skip picture for now
-      // When Cloudinary is ready, upload imageFile here and pass the URL as picture
-      await createFood({
-        name:    foodName,
-        price:   Number(price),
-        canteen: selectedCanteen,
-        macros: {
-          calories: Number(macros.calories),
-          carbs:    Number(macros.carbs),
-          protein:  Number(macros.protein),
-          fat:      Number(macros.fat),
-          sugar:    Number(macros.sugar),
+      await createFood(
+        {
+          name:    foodName,
+          price:   Number(price),
+          canteen: selectedCanteen,
+          macros: {
+            calories: Number(macros.calories),
+            carbs:    Number(macros.carbs),
+            protein:  Number(macros.protein),
+            fat:      Number(macros.fat),
+            sugar:    Number(macros.sugar),
+          },
         },
-      });
-
+        imageFile // passed separately — FormData is built inside foodApi
+      );
       navigate(-1);
     } catch (err: any) {
       setError(err.message || "Failed to save food. Please try again.");
@@ -118,7 +120,6 @@ const AddFood = () => {
     }
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-stone-50 pb-20 font-sans relative">
 
@@ -138,12 +139,10 @@ const AddFood = () => {
               to the system? All users will be able to see this location.
             </p>
             <div className="flex gap-3">
-              <button onClick={cancelCreateCanteen}
-                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition">
+              <button onClick={cancelCreateCanteen} className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition">
                 Cancel
               </button>
-              <button onClick={confirmCreateCanteen}
-                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-900 bg-amber-400 hover:bg-amber-500 transition shadow-sm">
+              <button onClick={confirmCreateCanteen} className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-900 bg-amber-400 hover:bg-amber-500 transition shadow-sm">
                 Yes, Create It
               </button>
             </div>
@@ -166,7 +165,6 @@ const AddFood = () => {
       <main className="max-w-2xl mx-auto p-6 mt-4">
         <form onSubmit={handleSubmit} className="space-y-8">
 
-          {/* Error banner */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-5 py-4 text-sm font-medium">
               {error}
@@ -176,35 +174,39 @@ const AddFood = () => {
           {/* ── 1. Image upload ── */}
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm flex flex-col items-center justify-center">
             <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageChange} />
+
             {imagePreview ? (
-              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden group">
+              <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group">
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                {/* Hover overlay — two actions */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
                   <button type="button" onClick={() => fileInputRef.current?.click()}
-                    className="bg-white text-stone-900 px-4 py-2 rounded-xl text-sm font-bold shadow-lg">
-                    Change Image
+                    className="bg-white text-stone-900 px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-amber-400 transition">
+                    Change
+                  </button>
+                  <button type="button" onClick={handleRemoveImage}
+                    className="bg-white text-red-500 px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-red-50 transition">
+                    Remove
                   </button>
                 </div>
               </div>
             ) : (
               <button type="button" onClick={() => fileInputRef.current?.click()}
-                className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50 flex flex-col items-center justify-center text-stone-400 hover:bg-stone-100 hover:border-amber-400 hover:text-amber-500 transition group">
+                className="w-full aspect-4/3 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50 flex flex-col items-center justify-center text-stone-400 hover:bg-stone-100 hover:border-amber-400 hover:text-amber-500 transition group">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 mb-3 group-hover:scale-110 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span className="font-bold text-sm tracking-wide">Tap to upload food image</span>
-                <span className="text-xs mt-1 text-stone-300">Image upload coming soon</span>
+                <span className="text-xs mt-1 text-stone-300">JPG, PNG or WebP</span>
               </button>
             )}
           </div>
 
           {/* ── 2. Basic info ── */}
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
-            {/* Food name */}
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Food Name</label>
-              <input type="text" required
-                value={foodName} onChange={e => setFoodName(e.target.value)}
+              <input type="text" required value={foodName} onChange={e => setFoodName(e.target.value)}
                 placeholder="e.g. Spicy Basil Pork"
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl p-4 text-stone-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition" />
             </div>
@@ -215,8 +217,8 @@ const AddFood = () => {
               <div onClick={() => setIsDropdownOpen(true)}
                 className={`w-full border rounded-xl p-4 flex items-center justify-between cursor-text transition ${isDropdownOpen ? "border-amber-400 bg-white" : "border-stone-200 bg-stone-50"}`}>
                 {isDropdownOpen ? (
-                  <input autoFocus type="text"
-                    value={canteenSearch} onChange={e => setCanteenSearch(e.target.value)}
+                  <input autoFocus type="text" value={canteenSearch}
+                    onChange={e => setCanteenSearch(e.target.value)}
                     placeholder="Search or type new canteen..."
                     className="bg-transparent outline-none w-full text-stone-900"
                     onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)} />
@@ -254,11 +256,9 @@ const AddFood = () => {
               )}
             </div>
 
-            {/* Price */}
             <div>
               <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Price (฿)</label>
-              <input type="number" required min="0"
-                value={price} onChange={e => setPrice(e.target.value)}
+              <input type="number" required min="0" value={price} onChange={e => setPrice(e.target.value)}
                 placeholder="0.00"
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl p-4 text-stone-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition" />
             </div>
@@ -274,8 +274,7 @@ const AddFood = () => {
                 Total Calories (kcal)
               </label>
               <input type="number" required min="0" name="calories"
-                value={macros.calories} onChange={handleMacroChange}
-                placeholder="0"
+                value={macros.calories} onChange={handleMacroChange} placeholder="0"
                 className="w-full text-center text-4xl font-serif text-stone-900 border-b-2 border-stone-200 focus:border-amber-400 focus:outline-none pb-2 bg-transparent transition" />
             </div>
 
@@ -286,8 +285,7 @@ const AddFood = () => {
                     {macro} (g)
                   </label>
                   <input type="number" required min="0" name={macro}
-                    value={macros[macro as keyof typeof macros]} onChange={handleMacroChange}
-                    placeholder="0"
+                    value={macros[macro as keyof typeof macros]} onChange={handleMacroChange} placeholder="0"
                     className="w-full bg-transparent text-lg font-bold text-stone-800 focus:outline-none" />
                 </div>
               ))}
@@ -300,7 +298,7 @@ const AddFood = () => {
             {submitting ? (
               <>
                 <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                Saving…
+                Uploading & Saving…
               </>
             ) : (
               "Save Menu Item"
