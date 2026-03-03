@@ -41,9 +41,13 @@ export const calculateSpecificMacros = (
   let fatPercentage: number;
   let sugarPercentage: number;
 
+<<<<<<< HEAD
   const goal = options?.fitness_goal ?? user.fitness_goal ?? 'Maintenance';
 
   switch (goal) {
+=======
+  switch (user.fitness_goal) {
+>>>>>>> e4cf6f02b242609b20e01fcc11972a2e1bdadd87
     case "Muscle Gain":
       totalDailyCalories = tdee * 1.2; // 120% of TDEE
       proteinK = 2.0; // k = 2.0
@@ -94,6 +98,7 @@ export const calculateSpecificMacros = (
     carb_target,
   };
 };
+<<<<<<< HEAD
 
 /**
  * Calculate calories burned from exercise
@@ -122,3 +127,5 @@ export const getExerciseCalorieOffset = (
 ): number => {
   return calculateCaloriesBurned(calPerHour, durationMinutes);
 };
+=======
+>>>>>>> e4cf6f02b242609b20e01fcc11972a2e1bdadd87
