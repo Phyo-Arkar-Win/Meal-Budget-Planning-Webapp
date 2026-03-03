@@ -9,6 +9,7 @@ import EditProfile from "./pages/Profile/EditProfile";
 import FoodDatabase from "./pages/Food/FoodDatabase";
 import FoodDetail from "./pages/Food/FoodDetail";
 import AddFood from "./pages/Food/AddFood";
+import CreatePlan from "./pages/Plan/CreatePlan";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
 
@@ -34,6 +35,9 @@ function App() {
               <Route path="/food"     element={<FoodDatabase />} />
               <Route path="/food/:id" element={<FoodDetail />} />
               <Route path="/food/add" element={<AddFood />} />
+
+              {/* Plans */}
+              <Route path="/plans/create" element={<CreatePlan />} />
 
               {/* 404 fallback */}
               <Route

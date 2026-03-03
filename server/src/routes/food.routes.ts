@@ -1,11 +1,14 @@
 import { Router } from "express";
-import { protect } from '../middleware/auth.middleware';
-import { createFood, getFoods, getFoodById } from "../controllers/food.controller";
+import { protect } from "../middleware/auth.middleware";
+import { uploadFood } from "../middleware/upload.middleware";
+import { createFood, getFoods, getFoodById, seedFoods } from "../controllers/food.controller";
 
 const router = Router();
 
-router.get('/', protect, getFoods)
-router.get('/:id', protect, createFood)
-router.post('/', protect, getFoodById)
+router.post("/seed", seedFoods);
+
+router.get("/",    protect, getFoods);
+router.get("/:id", protect, getFoodById);
+router.post("/",   protect, uploadFood.single("picture"), createFood);
 
 export default router;

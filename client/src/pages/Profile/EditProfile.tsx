@@ -222,9 +222,9 @@ const EditProfile = () => {
                 <div>
                   <label className={labelCls}>Fitness Goal</label>
                   <select name="fitness_goal" value={formData.fitness_goal} onChange={handleChange} className={inputCls + " appearance-none"}>
-                    <option value="Lose Weight">Lose Weight</option>
+                    <option value="Weight Loss">Weight Loss</option>
                     <option value="Maintenance">Maintenance</option>
-                    <option value="Build Muscle">Build Muscle</option>
+                    <option value="Muscle Gain">Muscle Gain</option>
                   </select>
                 </div>
                 <div>
@@ -234,7 +234,7 @@ const EditProfile = () => {
                     <option value="Lightly Active">Lightly Active</option>
                     <option value="Moderately Active">Moderately Active</option>
                     <option value="Very Active">Very Active</option>
-                    <option value="Extra Active">Extra Active</option>
+                    <option value="Extremely Active">Extremely Active</option>
                   </select>
                 </div>
               </div>
