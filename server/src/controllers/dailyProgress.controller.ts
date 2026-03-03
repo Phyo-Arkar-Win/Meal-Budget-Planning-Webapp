@@ -2,7 +2,7 @@
 import { Request, Response } from 'express';
 import DailyProgress from '../models/DailyProgress';
 import Plan from '../models/Plan';
-import '../models/Food';
+import '../models/food';
 
 // Helper function to get User ID for testing
 const getUserId = (req: Request) => {
@@ -198,6 +198,7 @@ export const saveProgress = async (req: Request, res: Response): Promise<void> =
     if (exercise_selected) progress.recommendation_data.exercise_selected = exercise_selected;
     if (exercise_time_minutes) progress.recommendation_data.exercise_time_minutes = exercise_time_minutes;
     if (actually_exercised !== undefined) progress.recommendation_data.actually_exercised = actually_exercised;
+
 
     const savedProgress = await progress.save();
 

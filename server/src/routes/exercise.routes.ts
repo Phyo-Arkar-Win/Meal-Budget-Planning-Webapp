@@ -1,15 +1,22 @@
 // src/routes/exercise.routes.ts
 import { Router } from 'express';
-import { getExercises, seedExercises } from '../controllers/exercise.controller';
+import { getExercises, getExerciseById, calculateExerciseBurn, seedExercises } from '../controllers/exercise.controller';
 import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Notice I didn't put 'protect' on the GET route. 
-// Usually, you want anyone (even logged-out users exploring the app) to be able to see the exercise list!
+// Get all exercises (public)
 router.get('/', getExercises);
 
-// But we DO want to protect the seed route so random people can't mess with your database.
+// Get a specific exercise with calorie calculation
+// Usage: GET /api/exercises/:exerciseId?duration_minutes=30&reps=10
+router.get('/:exerciseId', getExerciseById);
+
+// Calculate calories burned for an exercise duration (optionally supply reps)
+// Usage: POST /api/exercises/:exerciseId/calculate-burn with body { duration_minutes: 30, reps: 12 }
+router.post('/:exerciseId/calculate-burn', calculateExerciseBurn);
+
+// Seed default exercises (protected)
 router.post('/seed', protect, seedExercises);
 
 export default router;
