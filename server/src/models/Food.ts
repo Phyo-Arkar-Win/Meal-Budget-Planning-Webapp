@@ -13,6 +13,7 @@ export interface IFood extends Document {
     fat: number;
     sugar: number;
   };
+  averageRating: number;
 }
 
 const FoodSchema: Schema = new Schema({
@@ -26,7 +27,8 @@ const FoodSchema: Schema = new Schema({
     protein: { type: Number, required: true },
     fat: { type: Number, required: true },
     sugar: { type: Number, required: true },
-  }
+  },  
+  averageRating: { type: Number, default: 0 }
 }, {
   timestamps: true,
 });
