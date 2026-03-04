@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { 
   getTodayProgress, 
+  getProgressById,
   updateTracking, 
   completeTracking, 
   saveProgress,
@@ -15,6 +16,7 @@ router.use(protect);
 
 router.get('/:planId/today', getTodayProgress);
 router.get('/:planId/stats', getPlanStats);
+router.get('/entry/:progressId',     getProgressById);
 router.put('/:progressId/track', updateTracking);
 router.put('/:progressId/complete', completeTracking); 
 router.put('/:progressId/save', saveProgress);       

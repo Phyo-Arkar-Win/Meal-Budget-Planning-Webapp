@@ -2,20 +2,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { fetchUserProfile } from "../../api/userApi";
-import { fetchPlans } from "../../api/planApi";
+import { fetchPlans, deletePlan } from "../../api/planApi";
 import type { Plan } from "../../types/plan";
 import foodBg from "../../assets/food-bg.jpg";
 
 const Home = () => {
-  const [user, setUser]   = useState<any>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [user,    setUser]    = useState<any>(null);
+  const [plans,   setPlans]   = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Delete confirmation state
+  const [deleteTarget,    setDeleteTarget]    = useState<Plan | null>(null);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleteError,     setDeleteError]     = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
-
     const loadData = async () => {
       try {
         const [userData, plansData] = await Promise.all([
@@ -25,7 +29,6 @@ const Home = () => {
         setUser(userData);
         setPlans(plansData);
       } catch (error) {
-        console.error("Session expired or error:", error);
         localStorage.removeItem("token");
         navigate("/login");
       } finally {
@@ -38,6 +41,21 @@ const Home = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteConfirming(true);
+    setDeleteError("");
+    try {
+      await deletePlan(deleteTarget._id);
+      setPlans(prev => prev.filter(p => p._id !== deleteTarget._id));
+      setDeleteTarget(null);
+    } catch (e: any) {
+      setDeleteError(e.message || "Failed to delete plan.");
+    } finally {
+      setDeleteConfirming(false);
+    }
   };
 
   if (loading) {
@@ -54,13 +72,10 @@ const Home = () => {
   const macros  = user?.macro_targets;
   const initial = user?.username?.charAt(0).toUpperCase() || "U";
 
-  // How many days remain in a plan from its creation date + duration
   const daysRemaining = (plan: Plan) => {
-    const created  = new Date(plan.createdAt);
-    const deadline = new Date(created);
+    const deadline = new Date(plan.createdAt);
     deadline.setDate(deadline.getDate() + plan.duration);
-    const diff = Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, diff);
+    return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86400000));
   };
 
   return (
@@ -70,23 +85,52 @@ const Home = () => {
         .home-root * { box-sizing: border-box; }
         .home-root { font-family: 'DM Sans', sans-serif; }
         .serif { font-family: 'DM Serif Display', serif; }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         .fu { animation: fadeUp 0.45s ease both; }
-        .d1 { animation-delay: 0.07s; }
-        .d2 { animation-delay: 0.14s; }
-        .d3 { animation-delay: 0.21s; }
-        .d4 { animation-delay: 0.28s; }
-        .d5 { animation-delay: 0.35s; }
+        .d1 { animation-delay: 0.07s; } .d2 { animation-delay: 0.14s; }
+        .d3 { animation-delay: 0.21s; } .d4 { animation-delay: 0.28s; }
       `}</style>
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-6">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-serif font-bold text-stone-900 text-center mb-2">Delete Plan?</h3>
+            <p className="text-stone-500 text-center text-sm mb-2">
+              Are you sure you want to delete{" "}
+              <span className="font-bold text-stone-900">"{deleteTarget.name}"</span>?
+            </p>
+            <p className="text-red-400 text-center text-xs mb-5">This will permanently remove all tracking data for this plan.</p>
+            {deleteError && (
+              <p className="text-red-500 text-xs text-center mb-3">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => { setDeleteTarget(null); setDeleteError(""); }}
+                disabled={deleteConfirming}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={handleDeleteConfirm}
+                disabled={deleteConfirming}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white bg-red-500 hover:bg-red-600 transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                {deleteConfirming
+                  ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="home-root min-h-screen bg-stone-50 flex">
 
-        {/* ── SIDEBAR (md+) ─────────────────────────────────── */}
+        {/* ── SIDEBAR (md+) ── */}
         <aside className="hidden md:flex flex-col w-72 shrink-0 bg-stone-900 text-white sticky top-0 h-screen px-8 py-10">
-          {/* Brand */}
           <div className="mb-10 fu">
             <div className="flex items-center gap-2 mb-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -97,16 +141,14 @@ const Home = () => {
             <p className="text-stone-500 text-[10px] tracking-widest uppercase">Planning App</p>
           </div>
 
-          {/* Avatar + name */}
           <div className="flex flex-col items-center text-center mb-8 fu d1">
             <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none overflow-hidden">
               {user?.profile_picture
-                ? <img src={user.profile_picture} alt={`${user.username}'s avatar`} className="w-full h-full object-cover" />
+                ? <img src={user.profile_picture} alt="" className="w-full h-full object-cover" />
                 : initial}
             </div>
             <p className="serif text-xl text-white leading-tight">{user?.username || "User"}</p>
             <p className="text-stone-500 text-xs mt-0.5 truncate w-full text-center">{user?.email || ""}</p>
-
             <Link to="/profile" className="mt-2 text-xs text-stone-400 hover:text-amber-400 transition flex items-center gap-1">
               Edit Profile
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -114,7 +156,6 @@ const Home = () => {
                 <path d="M4 13.5V16h2.5l7.372-7.372-2.5-2.5L4 13.5z" />
               </svg>
             </Link>
-
             <button onClick={handleLogout} className="mt-3 flex items-center gap-1.5 text-xs text-stone-500 hover:text-red-400 transition">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
@@ -125,13 +166,12 @@ const Home = () => {
 
           <div className="border-t border-stone-800 mb-6" />
 
-          {/* Quick stats */}
           <div className="flex flex-col mb-8 fu d2">
             {[
-              { label: "Sex",      value: user?.gender        || "—" },
-              { label: "Weight",   value: user?.weight        ? `${user.weight} kg`   : "—" },
-              { label: "Height",   value: user?.height        ? `${user.height} cm`   : "—" },
-              { label: "Goal",     value: user?.fitness_goal  || "Not set" },
+              { label: "Sex",      value: user?.gender         || "—" },
+              { label: "Weight",   value: user?.weight         ? `${user.weight} kg`  : "—" },
+              { label: "Height",   value: user?.height         ? `${user.height} cm`  : "—" },
+              { label: "Goal",     value: user?.fitness_goal   || "Not set" },
               { label: "Activity", value: user?.activity_level || "Not set" },
             ].map(item => (
               <div key={item.label} className="flex justify-between items-center py-2.5 border-b border-stone-800 last:border-0">
@@ -141,7 +181,6 @@ const Home = () => {
             ))}
           </div>
 
-          {/* Nav */}
           <nav className="flex flex-col gap-1 mt-auto fu d3">
             <Link to="/food" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -164,7 +203,7 @@ const Home = () => {
           </nav>
         </aside>
 
-        {/* ── MAIN ────────────────────────────────────────────── */}
+        {/* ── MAIN ── */}
         <main className="flex-1 flex flex-col min-w-0">
 
           {/* Mobile top bar */}
@@ -178,13 +217,10 @@ const Home = () => {
                   See available<br />meals
                 </span>
               </Link>
-
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <p className="serif text-white text-lg leading-tight">{user?.username || "User"}</p>
-                  <Link to="/profile" className="text-[11px] text-stone-400 hover:text-amber-400 transition">
-                    Edit Profile ✎
-                  </Link>
+                  <Link to="/profile" className="text-[11px] text-stone-400 hover:text-amber-400 transition">Edit Profile ✎</Link>
                 </div>
                 <div className="w-11 h-11 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-lg font-bold shadow shrink-0 select-none overflow-hidden">
                   {user?.profile_picture
@@ -193,7 +229,6 @@ const Home = () => {
                 </div>
               </div>
             </div>
-
             <div className="flex justify-end mt-2 fu d1">
               <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-red-400 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -204,24 +239,22 @@ const Home = () => {
             </div>
           </div>
 
-          {/* ── Scrollable content ── */}
+          {/* Scrollable content */}
           <div className="flex-1 flex justify-center py-8 px-5 md:py-10 md:px-10">
             <div className="w-full max-w-xl flex flex-col gap-7">
 
-              {/* PC greeting */}
+              {/* Greeting (desktop) */}
               <div className="hidden md:block fu">
                 <p className="text-stone-400 text-sm tracking-wide">Welcome back,</p>
                 <h1 className="serif text-4xl text-stone-900 mt-0.5">{user?.username || "User"}</h1>
               </div>
 
-              {/* ── Macronutrient Card ── */}
+              {/* Macro card */}
               <div className="relative rounded-2xl overflow-hidden shadow-xl fu d2" style={{ minHeight: 230 }}>
                 <img src={foodBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,rgba(10,10,10,.78) 0%,rgba(10,10,10,.48) 100%)" }} />
-
                 <div className="relative p-6 md:p-8 text-white">
                   <h2 className="serif text-xl md:text-2xl mb-5 tracking-wide">Macronutrient</h2>
-
                   <div className="grid grid-cols-3 gap-x-4 gap-y-4">
                     <div className="flex flex-col gap-4">
                       <div>
@@ -233,7 +266,6 @@ const Home = () => {
                         <p className="text-sm font-semibold capitalize leading-tight">{user?.activity_level || "Not set"}</p>
                       </div>
                     </div>
-
                     <div className="flex flex-col gap-4 text-center">
                       <div>
                         <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Protein</p>
@@ -244,7 +276,6 @@ const Home = () => {
                         <p className="text-sm font-semibold">{macros?.carbohydrate ?? "—"} <span className="text-xs text-white/55">g</span></p>
                       </div>
                     </div>
-
                     <div className="flex flex-col gap-4 text-center">
                       <div>
                         <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Sugar</p>
@@ -256,7 +287,6 @@ const Home = () => {
                       </div>
                     </div>
                   </div>
-
                   <div className="mt-5 pt-4 border-t border-white/20 text-center">
                     <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-1">Daily Calories</p>
                     <p className="serif text-3xl text-amber-400">
@@ -280,15 +310,12 @@ const Home = () => {
                 ))}
               </div>
 
-              {/* ── Your Plans ── */}
+              {/* Your Plans */}
               <div className="fu d4">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="serif text-2xl md:text-3xl text-stone-900">Your Plans</h2>
-                  <Link
-                    to="/plans/create"
-                    title="Create new plan"
-                    className="w-9 h-9 rounded-full bg-stone-900 text-white flex items-center justify-center text-2xl font-light hover:bg-amber-400 hover:text-stone-900 transition shadow"
-                  >
+                  <Link to="/plans/create" title="Create new plan"
+                    className="w-9 h-9 rounded-full bg-stone-900 text-white flex items-center justify-center text-2xl font-light hover:bg-amber-400 hover:text-stone-900 transition shadow">
                     +
                   </Link>
                 </div>
@@ -299,57 +326,66 @@ const Home = () => {
                       const remaining = daysRemaining(plan);
                       const isActive  = plan.status === "active";
                       return (
-                        <div key={plan._id}
-                          className="bg-white border border-stone-100 rounded-2xl shadow-sm p-5 hover:shadow-md transition">
+                        <div key={plan._id} className="bg-white border border-stone-100 rounded-2xl shadow-sm p-5 hover:shadow-md transition">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              {/* Goal + priority badge */}
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-semibold text-stone-800 capitalize">
-                                  {plan.fitness_goal} Plan
-                                </p>
-                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                            <div className="min-w-0 flex-1">
+
+                              {/* Plan name + priority badge */}
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <p className="font-semibold text-stone-800">{plan.name}</p>
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
                                   plan.priority === "budget"
                                     ? "bg-amber-100 text-amber-700"
                                     : "bg-green-100 text-green-700"
                                 }`}>
                                   {plan.priority}
                                 </span>
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
+                                  plan.status === "active"    ? "bg-emerald-100 text-emerald-600" :
+                                  plan.status === "completed" ? "bg-blue-100 text-blue-600" :
+                                                                "bg-stone-100 text-stone-500"
+                                }`}>
+                                  {plan.status}
+                                </span>
                               </div>
 
                               {/* Sub-info */}
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-400">
+                                <span className="capitalize">{plan.fitness_goal}</span>
+                                <span>·</span>
                                 <span>{plan.activity_level}</span>
                                 <span>·</span>
-                                <span>{plan.duration} day{plan.duration !== 1 ? "s" : ""} total</span>
+                                <span>{plan.duration} day{plan.duration !== 1 ? "s" : ""}</span>
                                 {plan.priority === "budget" && plan.budget_limit && (
-                                  <>
-                                    <span>·</span>
-                                    <span>฿{plan.budget_limit}/day</span>
-                                  </>
+                                  <><span>·</span><span>฿{plan.budget_limit}/day</span></>
                                 )}
                               </div>
 
-                              {/* Days remaining */}
-                              <p className={`text-xs mt-1.5 font-medium ${
-                                remaining === 0 ? "text-red-400" : "text-stone-500"
-                              }`}>
+                              <p className={`text-xs mt-1.5 font-medium ${remaining === 0 ? "text-red-400" : "text-stone-400"}`}>
                                 {remaining === 0 ? "Plan ended" : `${remaining} day${remaining !== 1 ? "s" : ""} remaining`}
                               </p>
                             </div>
 
-                            {/* Action button */}
-                            <Link
-                              to={`/plans/${plan._id}/track`}
-                              className="shrink-0 bg-stone-100 hover:bg-amber-400 hover:text-stone-900 text-stone-700 text-xs font-semibold px-4 py-2 rounded-full transition"
-                            >
-                              {isActive ? "Track" : "View"}
-                            </Link>
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Link to={`/plans/${plan._id}/track`}
+                                className="bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white text-xs font-semibold px-4 py-2 rounded-full transition">
+                                {isActive ? "Track" : "View"}
+                              </Link>
+                              <button
+                                onClick={() => setDeleteTarget(plan)}
+                                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-red-100 text-stone-400 hover:text-red-500 flex items-center justify-center transition"
+                                title="Delete plan">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Calorie target mini bar */}
+                          {/* Calorie + macro chips */}
                           <div className="mt-3 pt-3 border-t border-stone-50">
-                            <div className="flex justify-between text-[10px] text-stone-400 mb-1">
+                            <div className="flex justify-between text-[10px] text-stone-400 mb-1.5">
                               <span>Daily target</span>
                               <span className="font-semibold text-stone-600">
                                 {Math.round(plan.macro_targets.daily_cal).toLocaleString()} kcal
@@ -362,8 +398,8 @@ const Home = () => {
                                 { label: "F", value: plan.macro_targets.fat,          color: "#fca5a5" },
                               ].map(m => (
                                 <span key={m.label} className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                                  style={{ background: m.color + "33", color: m.color.replace("ac","66").replace("fd","99").replace("a5","88") }}>
-                                  {m.label} {m.value.toFixed(0)}g
+                                  style={{ background: m.color + "33", color: m.color }}>
+                                  {m.label} {Number(m.value).toFixed(0)}g
                                 </span>
                               ))}
                             </div>
@@ -373,7 +409,6 @@ const Home = () => {
                     })}
                   </div>
                 ) : (
-                  /* Empty state */
                   <div className="text-center p-8 border-2 border-dashed border-stone-200 rounded-2xl text-stone-500">
                     <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

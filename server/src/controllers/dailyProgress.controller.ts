@@ -189,3 +189,19 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
+
+export const getProgressById = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { progressId } = req.params;
+    const userId = req.user?.id;
+
+    const progress = await DailyProgress.findOne({ _id: progressId, user_id: userId })
+      .populate('eaten_template_menus');
+
+    if (!progress) { res.status(404).json({ message: "Progress entry not found." }); return; }
+
+    res.status(200).json(progress);
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
