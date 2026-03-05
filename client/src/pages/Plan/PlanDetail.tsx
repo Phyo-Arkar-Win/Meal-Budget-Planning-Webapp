@@ -1,13 +1,12 @@
 // client/src/pages/Plan/PlanDetail.tsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { fetchPlanById } from "../../api/planApi";
+import { fetchPlanById, extendPlan } from "../../api/planApi";
 import { getPlanStats } from "../../api/dailyprogressApi";
 import type { Plan } from "../../types/plan";
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-// getPlanStats returns { total_days_tracked, data: ChartDay[] }
 interface ChartDay {
   day_number:        number;
   date:              string;
@@ -20,26 +19,45 @@ export default function PlanDetail() {
   const { planId } = useParams<{ planId: string }>();
   const navigate   = useNavigate();
 
-  const [plan,     setPlan]     = useState<Plan | null>(null);
-  const [stats,    setStats]    = useState<ChartDay[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState("");
+  const [plan,    setPlan]    = useState<Plan | null>(null);
+  const [stats,   setStats]   = useState<ChartDay[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
+
+  // Extend state
+  const [extendDays,    setExtendDays]    = useState("7");
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [extendError,   setExtendError]   = useState("");
+  const [extendSuccess, setExtendSuccess] = useState("");
 
   useEffect(() => {
     if (!planId) return;
     (async () => {
       setLoading(true);
       try {
-        const [p, s] = await Promise.all([
-          fetchPlanById(planId),
-          getPlanStats(planId),
-        ]);
+        const [p, s] = await Promise.all([fetchPlanById(planId), getPlanStats(planId)]);
         setPlan(p);
         setStats(s.data ?? []);
       } catch (e: any) { setError(e.message || "Failed to load plan"); }
       finally { setLoading(false); }
     })();
   }, [planId]);
+
+  const handleExtend = async () => {
+    if (!plan) return;
+    const days = parseInt(extendDays);
+    if (!days || days < 1) { setExtendError("Enter at least 1 day."); return; }
+    setExtendLoading(true);
+    setExtendError("");
+    setExtendSuccess("");
+    try {
+      const updated = await extendPlan(plan._id, days);
+      setPlan(updated);
+      setExtendSuccess(`Plan extended by ${days} days!`);
+      setExtendDays("7");
+    } catch (e: any) { setExtendError(e.message || "Failed to extend."); }
+    finally { setExtendLoading(false); }
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center">
@@ -54,23 +72,21 @@ export default function PlanDetail() {
     </div>
   );
 
-  // Current day = days since plan creation (1-based), capped at duration
+  const isCompleted = plan.status === "completed";
+
   const daysSinceStart = Math.floor(
     (Date.now() - new Date(plan.createdAt).getTime()) / 86400000
   );
   const currentDay = Math.min(daysSinceStart + 1, plan.duration);
 
-  // Build lookup: day_number → saved ChartDay
   const savedMap = stats.reduce<Record<number, ChartDay>>((acc, d) => {
-    acc[d.day_number] = d;
-    return acc;
+    acc[d.day_number] = d; return acc;
   }, {});
 
-  // Summary stats from saved days only
-  const savedDays      = stats.length;
-  const daysOver       = stats.filter(d => d.calories_exceeded > 0).length;
-  const daysExercised  = stats.filter(d => d.exercised).length;
-  const compliance     = savedDays > 0 ? Math.round(((savedDays - daysOver) / savedDays) * 100) : 0;
+  const savedDays     = stats.length;
+  const daysOver      = stats.filter(d => d.calories_exceeded > 0).length;
+  const daysExercised = stats.filter(d => d.exercised).length;
+  const compliance    = savedDays > 0 ? Math.round(((savedDays - daysOver) / savedDays) * 100) : 0;
 
   const templateCost = plan.template_menus.reduce((s, f) => s + f.price, 0);
   const templateCal  = plan.template_menus.reduce((s, f) => s + f.macros.calories, 0);
@@ -79,19 +95,19 @@ export default function PlanDetail() {
   type DayStatus = "today" | "saved-ok" | "saved-over" | "missed" | "future";
 
   const dayStatus = (day: number): DayStatus => {
-    if (plan.status === "active" && day === currentDay) return "today";
-    if (day > currentDay) return "future";
+    if (!isCompleted && day === currentDay) return "today";
+    if (!isCompleted && day > currentDay)   return "future";
     const entry = savedMap[day];
     if (!entry) return "missed";
     return entry.calories_exceeded > 0 ? "saved-over" : "saved-ok";
   };
 
   const dayCls: Record<DayStatus, string> = {
-    today:      "bg-amber-400 text-stone-900 ring-2 ring-amber-200 font-bold shadow-md",
-    "saved-ok": "bg-emerald-100 text-emerald-700 font-semibold",
+    today:       "bg-amber-400 text-stone-900 ring-2 ring-amber-200 font-bold shadow-md",
+    "saved-ok":  "bg-emerald-100 text-emerald-700 font-semibold",
     "saved-over":"bg-red-100 text-red-600 font-semibold",
-    missed:     "bg-stone-100 text-stone-400",
-    future:     "bg-white border border-stone-200 text-stone-400",
+    missed:      "bg-stone-100 text-stone-400",
+    future:      "bg-white border border-stone-200 text-stone-400",
   };
 
   const dayIcon: Record<DayStatus, string> = {
@@ -124,9 +140,7 @@ export default function PlanDetail() {
           {/* Status + name */}
           <div className="mb-8">
             <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block mb-3 ${
-              plan.status === "active"    ? "bg-emerald-500/20 text-emerald-400" :
-              plan.status === "completed" ? "bg-blue-500/20 text-blue-400"       :
-                                            "bg-stone-700 text-stone-400"
+              isCompleted ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"
             }`}>{plan.status}</span>
             <h1 className="serif text-3xl text-amber-400 leading-tight mb-1">{plan.name}</h1>
             <p className="text-stone-400 text-sm capitalize">{plan.fitness_goal} · {plan.activity_level}</p>
@@ -135,12 +149,12 @@ export default function PlanDetail() {
           {/* Plan meta */}
           <div className="flex flex-col mb-8">
             {[
-              { label: "Duration",  value: `${plan.duration} days` },
-              { label: "Priority",  value: plan.priority.charAt(0).toUpperCase() + plan.priority.slice(1) },
-              { label: "Budget",    value: plan.priority === "budget" && plan.budget_limit ? `฿${plan.budget_limit}/day` : "Unlimited" },
-              { label: "Current Day", value: `${currentDay} of ${plan.duration}` },
-              { label: "Days Saved",  value: `${savedDays}` },
+              { label: "Duration",    value: `${plan.duration} days` },
+              { label: "Priority",    value: plan.priority.charAt(0).toUpperCase() + plan.priority.slice(1) },
+              { label: "Budget",      value: plan.priority === "budget" && plan.budget_limit ? `฿${plan.budget_limit}/day` : "Unlimited" },
+              { label: "Days Saved",  value: `${savedDays} of ${plan.duration}` },
               { label: "Compliance",  value: `${compliance}%` },
+              { label: "Exercised",   value: `${daysExercised} days` },
             ].map(r => (
               <div key={r.label} className="flex justify-between items-center py-2.5 border-b border-stone-800 last:border-0">
                 <span className="text-[10px] text-stone-500 uppercase tracking-widest">{r.label}</span>
@@ -163,15 +177,31 @@ export default function PlanDetail() {
                 <span className="text-xs font-semibold" style={{ color: t.color }}>{t.value}</span>
               </div>
             ))}
-            {plan.priority === "budget" && plan.budget_limit && (
-              <div className="flex justify-between items-center mt-2 pt-2 border-t border-stone-800">
-                <span className="text-xs text-stone-400">Template cost</span>
-                <span className={`text-xs font-semibold ${templateCost > plan.budget_limit ? "text-red-400" : "text-emerald-400"}`}>
-                  ฿{templateCost} / ฿{plan.budget_limit}
-                </span>
-              </div>
-            )}
           </div>
+
+          {/* ── Completed: extend controls in sidebar ── */}
+          {isCompleted && (
+            <div className="border-t border-stone-800 pt-6 mb-6">
+              <p className="text-xs text-stone-500 uppercase tracking-widest mb-3">Extend Plan</p>
+              <div className="flex gap-2 items-center mb-2">
+                <input
+                  type="number" min="1" max="365"
+                  value={extendDays}
+                  onChange={e => { setExtendDays(e.target.value); setExtendError(""); setExtendSuccess(""); }}
+                  className="w-16 bg-stone-800 border border-stone-700 rounded-lg px-2 py-1.5 text-sm text-center text-white font-bold focus:outline-none focus:border-amber-400 transition"
+                />
+                <span className="text-xs text-stone-400 flex-1">more days</span>
+                <button onClick={handleExtend} disabled={extendLoading}
+                  className="bg-amber-400 hover:bg-amber-500 text-stone-900 text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50 flex items-center gap-1">
+                  {extendLoading
+                    ? <div className="w-3 h-3 border-2 border-stone-900/30 border-t-stone-900 rounded-full animate-spin" />
+                    : "Go"}
+                </button>
+              </div>
+              {extendError   && <p className="text-red-400 text-xs">{extendError}</p>}
+              {extendSuccess && <p className="text-emerald-400 text-xs">{extendSuccess}</p>}
+            </div>
+          )}
 
           {/* Stats link */}
           <Link to={`/plans/${planId}/stats`}
@@ -195,7 +225,7 @@ export default function PlanDetail() {
             </button>
             <div className="text-center">
               <p className="serif text-amber-400 text-lg leading-tight">{plan.name}</p>
-              <p className="text-stone-400 text-[10px] capitalize">{plan.status}</p>
+              <p className={`text-[10px] capitalize ${isCompleted ? "text-blue-400" : "text-stone-400"}`}>{plan.status}</p>
             </div>
             <Link to={`/plans/${planId}/stats`} className="text-stone-400 hover:text-amber-400 transition">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -206,12 +236,12 @@ export default function PlanDetail() {
 
           <div className="max-w-2xl mx-auto px-5 py-8 md:px-8 md:py-10 space-y-8">
 
-            {/* Summary KPI cards */}
+            {/* KPI cards */}
             <div className="grid grid-cols-3 gap-3 fu">
               {[
-                { label: "Days Saved",   value: String(savedDays),    unit: `of ${plan.duration}`, color: "#86efac" },
-                { label: "Compliance",   value: `${compliance}%`,      unit: "on target",           color: compliance >= 70 ? "#86efac" : "#fca5a5" },
-                { label: "Exercised",    value: String(daysExercised), unit: "days",                color: "#93c5fd" },
+                { label: "Days Saved",  value: String(savedDays),    unit: `of ${plan.duration}`, color: "#86efac" },
+                { label: "Compliance",  value: `${compliance}%`,      unit: "on target",           color: compliance >= 70 ? "#86efac" : "#fca5a5" },
+                { label: "Exercised",   value: String(daysExercised), unit: "days",                color: "#93c5fd" },
               ].map(s => (
                 <div key={s.label} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm text-center">
                   <p className="text-[10px] text-stone-400 uppercase tracking-widest mb-1">{s.label}</p>
@@ -221,8 +251,8 @@ export default function PlanDetail() {
               ))}
             </div>
 
-            {/* Today CTA — active plans only */}
-            {plan.status === "active" && (
+            {/* ── Today CTA (active only) ── */}
+            {!isCompleted && (
               <Link to={`/plans/${planId}/today`}
                 className="block bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white rounded-2xl p-5 shadow-md transition-all duration-200 group fu d1">
                 <div className="flex items-center justify-between">
@@ -230,9 +260,7 @@ export default function PlanDetail() {
                     <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400 group-hover:text-stone-700 mb-1">Today</p>
                     <p className="serif text-2xl text-amber-400 group-hover:text-stone-900">Day {currentDay}</p>
                     <p className="text-sm text-stone-400 group-hover:text-stone-600 mt-1">
-                      {savedMap[currentDay]
-                        ? "Day saved ✓ — tap to review"
-                        : "Tap to start tracking"}
+                      {savedMap[currentDay] ? "Day saved ✓ — tap to review" : "Tap to start tracking"}
                     </p>
                   </div>
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-stone-600 group-hover:text-stone-900 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -242,16 +270,58 @@ export default function PlanDetail() {
               </Link>
             )}
 
+            {/* ── Completed banner (replaces Today CTA) ── */}
+            {isCompleted && (
+              <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-2xl p-6 shadow-md fu d1">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl shrink-0">🏆</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-1">Plan completed</p>
+                    <p className="serif text-2xl text-amber-400 leading-tight">Well done!</p>
+                    <p className="text-sm text-stone-400 mt-1">
+                      {savedDays} of {plan.duration} days tracked · {compliance}% compliance
+                    </p>
+                  </div>
+                  <Link to={`/plans/${planId}/stats`}
+                    className="shrink-0 bg-amber-400 hover:bg-amber-500 text-stone-900 text-xs font-bold px-4 py-2.5 rounded-xl transition">
+                    Stats →
+                  </Link>
+                </div>
+
+                {/* Mobile extend controls */}
+                <div className="md:hidden mt-5 pt-5 border-t border-stone-700">
+                  <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Want to keep going?</p>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number" min="1" max="365"
+                      value={extendDays}
+                      onChange={e => { setExtendDays(e.target.value); setExtendError(""); setExtendSuccess(""); }}
+                      className="w-16 bg-stone-700 border border-stone-600 rounded-lg px-2 py-2 text-sm text-center text-white font-bold focus:outline-none focus:border-amber-400 transition"
+                    />
+                    <span className="text-xs text-stone-400 flex-1">more days</span>
+                    <button onClick={handleExtend} disabled={extendLoading}
+                      className="bg-amber-400 hover:bg-amber-500 text-stone-900 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50 flex items-center gap-1.5">
+                      {extendLoading
+                        ? <div className="w-3.5 h-3.5 border-2 border-stone-900/30 border-t-stone-900 rounded-full animate-spin" />
+                        : "Extend →"}
+                    </button>
+                  </div>
+                  {extendError   && <p className="text-red-400 text-xs mt-2">{extendError}</p>}
+                  {extendSuccess && <p className="text-emerald-400 text-xs mt-2">{extendSuccess}</p>}
+                </div>
+              </div>
+            )}
+
             {/* Day grid */}
             <div className="fu d2">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">All Days</p>
                 <div className="flex gap-2 text-[9px] text-stone-400 font-medium flex-wrap justify-end">
                   {[
-                    { cls: "bg-amber-400",    label: "Today"  },
-                    { cls: "bg-emerald-100",  label: "Saved"  },
-                    { cls: "bg-red-100",      label: "Over"   },
-                    { cls: "bg-stone-100",    label: "Missed" },
+                    { cls: "bg-amber-400",   label: "Today"  },
+                    { cls: "bg-emerald-100", label: "Saved"  },
+                    { cls: "bg-red-100",     label: "Over"   },
+                    { cls: "bg-stone-100",   label: "Missed" },
                   ].map(l => (
                     <span key={l.label} className="flex items-center gap-1">
                       <span className={`w-2 h-2 rounded-sm inline-block ${l.cls}`} />
@@ -260,21 +330,18 @@ export default function PlanDetail() {
                   ))}
                 </div>
               </div>
-
               <div className="grid grid-cols-7 gap-2">
                 {Array.from({ length: plan.duration }, (_, i) => {
                   const day    = i + 1;
                   const status = dayStatus(day);
                   const entry  = savedMap[day];
+                  const isToday = !isCompleted && day === currentDay;
                   return (
                     <Link key={day}
-                      to={day === currentDay && plan.status === "active"
-                        ? `/plans/${planId}/today`
-                        : `/plans/${planId}/track`}
+                      to={isToday ? `/plans/${planId}/today` : `/plans/${planId}/track`}
                       className={`relative rounded-xl p-2 text-center transition-all duration-150 hover:scale-105 hover:shadow-md cursor-pointer ${dayCls[status]}`}>
                       <p className="text-[10px] leading-none mb-0.5 h-3">{dayIcon[status]}</p>
                       <p className="text-sm font-bold leading-none">{day}</p>
-                      {/* Exercised dot */}
                       {entry?.exercised && (
                         <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-400" title="Exercised" />
                       )}
@@ -290,8 +357,8 @@ export default function PlanDetail() {
                 Daily Template · {plan.template_menus.length} meals
               </p>
               <div className="flex flex-col gap-2 mb-3">
-                {plan.template_menus.map(food => (
-                  <div key={food._id} className="flex items-center justify-between bg-white border border-stone-100 rounded-xl px-4 py-3 shadow-sm">
+                {plan.template_menus.map((food, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white border border-stone-100 rounded-xl px-4 py-3 shadow-sm">
                     <div className="min-w-0">
                       <p className="font-semibold text-stone-800 text-sm truncate">{food.name}</p>
                       <p className="text-xs text-stone-400 mt-0.5">{food.canteen} · {food.macros.calories} kcal</p>

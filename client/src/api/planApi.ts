@@ -51,3 +51,17 @@ export const deletePlan = async (planId: string): Promise<void> => {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to delete plan");
 };
+
+// Extend a completed plan by additional_days → reactivates it
+export const extendPlan = async (
+  planId: string,
+  additional_days: number
+): Promise<Plan> => {
+  const res  = await fetch(`${API_URL}/api/plans/${planId}/extend`, {
+    method: "PUT", headers: h(),
+    body: JSON.stringify({ additional_days }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to extend plan");
+  return data.data;
+};

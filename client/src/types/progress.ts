@@ -39,3 +39,14 @@ export interface Exercise {
   name:         string;
   cal_per_hour: number;
 }
+
+export type TodayStatusResult =
+  | {
+      exists: false;
+    }
+  | {
+      exists: true;
+      status: "tracking" | "recommendation" | "saved";
+      eaten_count: number;
+      day_number: number;
+    };

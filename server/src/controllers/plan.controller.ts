@@ -135,3 +135,32 @@ export const previewMacros = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
+
+// PUT /api/plans/:planId/extend
+// @desc  Add extra days to a completed plan and reactivate it
+export const extendPlan = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { additional_days } = req.body;
+
+    if (!additional_days || additional_days < 1) {
+      res.status(400).json({ message: "additional_days must be at least 1." }); return;
+    }
+
+    const plan = await Plan.findOne({ _id: req.params.planId, owner: userId });
+    if (!plan) { res.status(404).json({ message: "Plan not found." }); return; }
+
+    plan.duration += additional_days;
+    plan.status    = 'active';
+    await plan.save();
+
+    await plan.populate('template_menus');
+    res.status(200).json({
+      message:  `Plan extended by ${additional_days} days. Now active again.`,
+      new_duration: plan.duration,
+      data:     plan,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
