@@ -272,7 +272,7 @@ export default function PlanDetail() {
 
             {/* ── Completed banner (replaces Today CTA) ── */}
             {isCompleted && (
-              <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-2xl p-6 shadow-md fu d1">
+              <div className="bg-linear-to-br from-stone-800 to-stone-900 rounded-2xl p-6 shadow-md fu d1">
                 <div className="flex items-center gap-4">
                   <div className="text-4xl shrink-0">🏆</div>
                   <div className="flex-1 min-w-0">

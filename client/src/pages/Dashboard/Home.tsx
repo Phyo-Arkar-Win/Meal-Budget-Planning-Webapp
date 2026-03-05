@@ -177,12 +177,6 @@ export default function Home() {
   const macros  = user?.macro_targets;
   const initial = user?.username?.charAt(0).toUpperCase() || "U";
 
-  const daysRemaining = (plan: Plan) => {
-    const deadline = new Date(plan.createdAt);
-    deadline.setDate(deadline.getDate() + plan.duration);
-    return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86400000));
-  };
-
   return (
     <>
       <style>{`
