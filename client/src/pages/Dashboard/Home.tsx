@@ -3,23 +3,31 @@ import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { fetchUserProfile } from "../../api/userApi";
 import { fetchPlans, deletePlan } from "../../api/planApi";
+import { getPlanStats } from "../../api/dailyprogressApi";
 import type { Plan } from "../../types/plan";
 import foodBg from "../../assets/food-bg.jpg";
 
+interface PlanStat {
+  savedDays:    number;
+  daysOver:     number;
+  compliance:   number;
+}
+
 const Home = () => {
-  const [user,    setUser]    = useState<any>(null);
-  const [plans,   setPlans]   = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [user,      setUser]      = useState<any>(null);
+  const [plans,     setPlans]     = useState<Plan[]>([]);
+  const [planStats, setPlanStats] = useState<Record<string, PlanStat>>({});
+  const [loading,   setLoading]   = useState(true);
   const navigate = useNavigate();
 
-  // Delete confirmation state
-  const [deleteTarget,    setDeleteTarget]    = useState<Plan | null>(null);
+  const [deleteTarget,     setDeleteTarget]     = useState<Plan | null>(null);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
-  const [deleteError,     setDeleteError]     = useState("");
+  const [deleteError,      setDeleteError]      = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
+
     const loadData = async () => {
       try {
         const [userData, plansData] = await Promise.all([
@@ -28,6 +36,25 @@ const Home = () => {
         ]);
         setUser(userData);
         setPlans(plansData);
+
+        // Fetch stats for all plans in parallel
+        const statsResults = await Promise.allSettled(
+          plansData.map((p: Plan) => getPlanStats(p._id))
+        );
+
+        const statsMap: Record<string, PlanStat> = {};
+        statsResults.forEach((result, i) => {
+          if (result.status === "fulfilled") {
+            const data      = result.value.data ?? [];
+            const savedDays = data.length;
+            const daysOver  = data.filter((d: any) => d.calories_exceeded > 0).length;
+            const compliance = savedDays > 0
+              ? Math.round(((savedDays - daysOver) / savedDays) * 100)
+              : 0;
+            statsMap[plansData[i]._id] = { savedDays, daysOver, compliance };
+          }
+        });
+        setPlanStats(statsMap);
       } catch (error) {
         localStorage.removeItem("token");
         navigate("/login");
@@ -91,7 +118,7 @@ const Home = () => {
         .d3 { animation-delay: 0.21s; } .d4 { animation-delay: 0.28s; }
       `}</style>
 
-      {/* ── Delete confirmation modal ── */}
+      {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-6">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -106,17 +133,14 @@ const Home = () => {
               <span className="font-bold text-stone-900">"{deleteTarget.name}"</span>?
             </p>
             <p className="text-red-400 text-center text-xs mb-5">This will permanently remove all tracking data for this plan.</p>
-            {deleteError && (
-              <p className="text-red-500 text-xs text-center mb-3">{deleteError}</p>
-            )}
+            {deleteError && <p className="text-red-500 text-xs text-center mb-3">{deleteError}</p>}
             <div className="flex gap-3">
               <button onClick={() => { setDeleteTarget(null); setDeleteError(""); }}
                 disabled={deleteConfirming}
                 className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition disabled:opacity-50">
                 Cancel
               </button>
-              <button onClick={handleDeleteConfirm}
-                disabled={deleteConfirming}
+              <button onClick={handleDeleteConfirm} disabled={deleteConfirming}
                 className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white bg-red-500 hover:bg-red-600 transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
                 {deleteConfirming
                   ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -181,24 +205,21 @@ const Home = () => {
             ))}
           </div>
 
+          {/* ── Nav — no Progress link ── */}
           <nav className="flex flex-col gap-1 mt-auto fu d3">
-            <Link to="/food" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
+            <Link to="/food"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
               </svg>
               Food Database
             </Link>
-            <Link to="/plans/create" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
+            <Link to="/plans/create"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Create Plan
-            </Link>
-            <Link to="/progress" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Progress
             </Link>
           </nav>
         </aside>
@@ -325,28 +346,24 @@ const Home = () => {
                     {plans.map(plan => {
                       const remaining = daysRemaining(plan);
                       const isActive  = plan.status === "active";
+                      const stat      = planStats[plan._id];
+
                       return (
                         <div key={plan._id} className="bg-white border border-stone-100 rounded-2xl shadow-sm p-5 hover:shadow-md transition">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
 
-                              {/* Plan name + priority badge */}
+                              {/* Plan name + badges */}
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <p className="font-semibold text-stone-800">{plan.name}</p>
                                 <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
-                                  plan.priority === "budget"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-green-100 text-green-700"
-                                }`}>
-                                  {plan.priority}
-                                </span>
+                                  plan.priority === "budget" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+                                }`}>{plan.priority}</span>
                                 <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
                                   plan.status === "active"    ? "bg-emerald-100 text-emerald-600" :
-                                  plan.status === "completed" ? "bg-blue-100 text-blue-600" :
+                                  plan.status === "completed" ? "bg-blue-100 text-blue-600"       :
                                                                 "bg-stone-100 text-stone-500"
-                                }`}>
-                                  {plan.status}
-                                </span>
+                                }`}>{plan.status}</span>
                               </div>
 
                               {/* Sub-info */}
@@ -372,8 +389,7 @@ const Home = () => {
                                 className="bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white text-xs font-semibold px-4 py-2 rounded-full transition">
                                 {isActive ? "Track" : "View"}
                               </Link>
-                              <button
-                                onClick={() => setDeleteTarget(plan)}
+                              <button onClick={() => setDeleteTarget(plan)}
                                 className="w-8 h-8 rounded-full bg-stone-100 hover:bg-red-100 text-stone-400 hover:text-red-500 flex items-center justify-center transition"
                                 title="Delete plan">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -404,6 +420,38 @@ const Home = () => {
                               ))}
                             </div>
                           </div>
+
+                          {/* ── Plan stats row ── */}
+                          {stat ? (
+                            <div className="mt-3 pt-3 border-t border-stone-50 flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-[10px] text-stone-400">
+                                  <span className="font-semibold text-stone-600">{stat.savedDays}</span>/{plan.duration} days saved
+                                </span>
+                              </div>
+                              <span className="text-stone-200">·</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                  stat.compliance >= 70 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+                                }`}>
+                                  {stat.savedDays === 0 ? "No data" : `${stat.compliance}% compliant`}
+                                </span>
+                              </div>
+                              {stat.daysOver > 0 && (
+                                <>
+                                  <span className="text-stone-200">·</span>
+                                  <span className="text-[10px] text-red-400 font-medium">{stat.daysOver} over</span>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-3 pt-3 border-t border-stone-50">
+                              <span className="text-[10px] text-stone-300">No tracking data yet</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

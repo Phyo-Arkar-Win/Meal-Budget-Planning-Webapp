@@ -9,7 +9,14 @@ import type { Exercise, DailyProgress } from "../../types/progress";
 const API_URL = import.meta.env.VITE_API_URL;
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-// Fetch the progress entry directly by its _id
+// Format minutes → "Xh Ym" when ≥ 60, otherwise "Xm"
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+};
+
 const getProgressById = async (progressId: string): Promise<DailyProgress> => {
   const res  = await fetch(`${API_URL}/api/progress/entry/${progressId}`, {
     headers: {
@@ -50,7 +57,6 @@ export default function Recommendation() {
         setProgress(prog);
         setExercises(exs);
 
-        // Restore previously selected exercise if already saved
         if (prog.recommendation_data?.exercise_selected) {
           const match = exs.find(e => e._id === prog.recommendation_data.exercise_selected);
           if (match) setSelectedExercise(match);
@@ -64,12 +70,9 @@ export default function Recommendation() {
   const caloriesExceeded = progress?.recommendation_data?.calories_exceeded ?? 0;
   const isSaved          = progress?.status === "saved";
 
-  // minutes = (calories_to_burn / cal_per_hour) * 60
   const minutesNeeded = selectedExercise && caloriesExceeded > 0
     ? Math.ceil((caloriesExceeded / selectedExercise.cal_per_hour) * 60)
-    : selectedExercise
-      ? 0
-      : null;
+    : selectedExercise ? 0 : null;
 
   const handleSaveDay = async () => {
     if (!progressId || saving) return;
@@ -190,8 +193,34 @@ export default function Recommendation() {
                   <p className="serif text-4xl text-emerald-600">No exercise needed</p>
                 ) : (
                   <>
-                    <p className="serif text-6xl font-bold text-amber-400">{minutesNeeded}</p>
-                    <p className="text-white/60 text-sm mt-1">minutes of {selectedExercise.name}</p>
+                    {/* Duration — large display, breaks into h + m if ≥ 60 */}
+                    {minutesNeeded !== null && minutesNeeded >= 60 ? (
+                      <div className="flex items-end justify-center gap-2">
+                        <div className="text-center">
+                          <p className="serif text-6xl font-bold text-amber-400 leading-none">
+                            {Math.floor(minutesNeeded / 60)}
+                          </p>
+                          <p className="text-white/40 text-xs mt-1">hr</p>
+                        </div>
+                        {minutesNeeded % 60 > 0 && (
+                          <>
+                            <p className="serif text-4xl text-amber-300/60 pb-2">:</p>
+                            <div className="text-center">
+                              <p className="serif text-6xl font-bold text-amber-300 leading-none">
+                                {String(minutesNeeded % 60).padStart(2, "0")}
+                              </p>
+                              <p className="text-white/40 text-xs mt-1">min</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="serif text-6xl font-bold text-amber-400">{minutesNeeded}</p>
+                    )}
+
+                    <p className="text-white/60 text-sm mt-3">
+                      {formatDuration(minutesNeeded ?? 0)} of {selectedExercise.name}
+                    </p>
                     <p className="text-white/30 text-xs mt-1">
                       to burn {fmt(caloriesExceeded)} kcal at {fmt(selectedExercise.cal_per_hour)} kcal/hr
                     </p>
@@ -228,7 +257,7 @@ export default function Recommendation() {
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-stone-600">
                 <p className="font-semibold text-stone-800">{selectedExercise.name}</p>
                 <p className="text-xs text-stone-400 mt-0.5">
-                  {minutesNeeded} min recommended ·{" "}
+                  {formatDuration(minutesNeeded ?? 0)} recommended ·{" "}
                   {actuallyExercised
                     ? <span className="text-emerald-600 font-semibold">Completed ✓</span>
                     : <span className="text-stone-400">Not completed</span>}
