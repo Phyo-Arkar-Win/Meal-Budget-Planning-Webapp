@@ -35,35 +35,35 @@ export const calculateSpecificMacros = (
   const tdee = bmr * activityFactor;
 
   // 3) Goal settings (Calories, Protein k, Fat %, Sugar %)
-  // Note: your switch uses user.fitness_goal; we keep it as-is.
   let totalDailyCalories: number;
   let proteinK: number;
   let fatPercentage: number;
   let sugarPercentage: number;
 
-  const goal = options?.fitness_goal ?? user.fitness_goal ?? 'Maintenance';
+  // YOUR version: options?.fitness_goal takes priority, falls back to user.fitness_goal
+  const goal = options?.fitness_goal ?? user.fitness_goal ?? "Maintenance";
 
   switch (goal) {
     case "Muscle Gain":
-      totalDailyCalories = tdee * 1.2; // 120% of TDEE
-      proteinK = 2.0; // k = 2.0
-      fatPercentage = 0.25; // 25%
-      sugarPercentage = 0.1; // 10%
+      totalDailyCalories = tdee * 1.2;
+      proteinK = 2.0;
+      fatPercentage = 0.25;
+      sugarPercentage = 0.1;
       break;
 
     case "Weight Loss":
-      totalDailyCalories = tdee * 0.8; // 80% of TDEE
-      proteinK = 2.0; // k = 2.0
-      fatPercentage = 0.2; // 20%
-      sugarPercentage = 0.05; // 5%
+      totalDailyCalories = tdee * 0.8;
+      proteinK = 2.0;
+      fatPercentage = 0.2;
+      sugarPercentage = 0.05;
       break;
 
     case "Maintenance":
     default:
-      totalDailyCalories = tdee; // TDEE
-      proteinK = 1.6; // k = 1.6
-      fatPercentage = 0.25; // 25%
-      sugarPercentage = 0.1; // 10%
+      totalDailyCalories = tdee;
+      proteinK = 1.6;
+      fatPercentage = 0.25;
+      sugarPercentage = 0.1;
       break;
   }
 
@@ -79,7 +79,7 @@ export const calculateSpecificMacros = (
   const sugar_target = Math.round(sugar_calories / 4);
 
   // 7) Carbs (g) = Remaining calories / 4 kcal/g
-  // IMPORTANT: Sugar is part of carbs, so we do NOT subtract sugar separately.
+  // Sugar is part of carbs — do NOT subtract separately
   const used_calories = protein_target * 4 + fat_target * 9;
   const carb_calories = totalDailyCalories - used_calories;
   const carb_target = Math.max(0, Math.round(carb_calories / 4));
