@@ -1,11 +1,13 @@
-// src/routes/dailyProgress.routes.ts
+// server/src/routes/dailyProgress.routes.ts
 import { Router } from 'express';
-import { 
-  getTodayProgress, 
-  updateTracking, 
-  completeTracking, 
+import {
+  getTodayProgress,
+  getTodayStatus,
+  getProgressById,
+  updateTracking,
+  completeTracking,
   saveProgress,
-  getPlanStats
+  getPlanStats,
 } from '../controllers/dailyProgress.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -13,10 +15,12 @@ const router = Router();
 
 router.use(protect);
 
-router.get('/:planId/today', getTodayProgress);
-router.get('/:planId/stats', getPlanStats);
-router.put('/:progressId/track', updateTracking);
-router.put('/:progressId/complete', completeTracking); 
-router.put('/:progressId/save', saveProgress);       
+router.get('/entry/:progressId',    getProgressById);   
+router.get('/:planId/today',        getTodayProgress);
+router.get('/:planId/today-status', getTodayStatus);    
+router.get('/:planId/stats',        getPlanStats);
+router.put('/:progressId/track',    updateTracking);
+router.put('/:progressId/complete', completeTracking);
+router.put('/:progressId/save',     saveProgress);
 
 export default router;

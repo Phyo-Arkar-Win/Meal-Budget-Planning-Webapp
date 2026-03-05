@@ -1,21 +1,19 @@
 // client/src/api/planApi.ts
-import type { CreatePlanPayload, MacroPreview, Plan } from "../types/plan";
+import type { Plan, CreatePlanPayload, MacroPreview } from "../types/plan";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const authHeaders = () => ({
+const h = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
 });
 
-// ── Preview macros live before plan is created ────────────────────────────────
 export const previewPlanMacros = async (
   fitness_goal: string,
   activity_level: string
 ): Promise<MacroPreview> => {
-  const res = await fetch(`${API_URL}/api/plans/preview-macros`, {
-    method: "POST",
-    headers: authHeaders(),
+  const res  = await fetch(`${API_URL}/api/plans/preview-macros`, {
+    method: "POST", headers: h(),
     body: JSON.stringify({ fitness_goal, activity_level }),
   });
   const data = await res.json();
@@ -23,34 +21,47 @@ export const previewPlanMacros = async (
   return data;
 };
 
-// ── Create a new plan ─────────────────────────────────────────────────────────
 export const createPlan = async (payload: CreatePlanPayload): Promise<Plan> => {
-  const res = await fetch(`${API_URL}/api/plans`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
+  const res  = await fetch(`${API_URL}/api/plans`, {
+    method: "POST", headers: h(), body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to create plan");
   return data;
 };
 
-// ── Get all plans for the logged-in user ──────────────────────────────────────
 export const fetchPlans = async (): Promise<Plan[]> => {
-  const res = await fetch(`${API_URL}/api/plans`, {
-    headers: authHeaders(),
-  });
+  const res  = await fetch(`${API_URL}/api/plans`, { headers: h() });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to fetch plans");
   return data;
 };
 
-// ── Get a single plan by ID ───────────────────────────────────────────────────
 export const fetchPlanById = async (planId: string): Promise<Plan> => {
-  const res = await fetch(`${API_URL}/api/plans/${planId}`, {
-    headers: authHeaders(),
-  });
+  const res  = await fetch(`${API_URL}/api/plans/${planId}`, { headers: h() });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to fetch plan");
   return data;
+};
+
+export const deletePlan = async (planId: string): Promise<void> => {
+  const res  = await fetch(`${API_URL}/api/plans/${planId}`, {
+    method: "DELETE", headers: h(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to delete plan");
+};
+
+// Extend a completed plan by additional_days → reactivates it
+export const extendPlan = async (
+  planId: string,
+  additional_days: number
+): Promise<Plan> => {
+  const res  = await fetch(`${API_URL}/api/plans/${planId}/extend`, {
+    method: "PUT", headers: h(),
+    body: JSON.stringify({ additional_days }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to extend plan");
+  return data.data;
 };

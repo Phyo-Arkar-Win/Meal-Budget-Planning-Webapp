@@ -13,12 +13,17 @@ interface AuthRequest extends Request {
 export const getTodayProgress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { planId } = req.params;
-    const userId = req.user?.id; // ← fixed: use protect middleware, not testing helper
+    const userId = req.user?.id;
 
     if (!userId) { res.status(401).json({ message: "Unauthorized." }); return; }
 
     const plan = await Plan.findOne({ _id: planId, owner: userId });
     if (!plan) { res.status(404).json({ message: "Plan not found." }); return; }
+
+    if (plan.status === 'completed') {
+      res.status(403).json({ code: "PLAN_COMPLETED", message: "This plan has been completed." });
+      return;
+    }
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -28,24 +33,67 @@ export const getTodayProgress = async (req: AuthRequest, res: Response): Promise
     let progress = await DailyProgress.findOne({
       plan_id: planId,
       user_id: userId,
-      date: { $gte: todayStart, $lt: todayEnd }
+      date: { $gte: todayStart, $lt: todayEnd },
     }).populate('eaten_template_menus');
 
     if (!progress) {
       const previousDaysCount = await DailyProgress.countDocuments({ plan_id: planId });
+
+      if (previousDaysCount >= plan.duration) {
+        res.status(403).json({ code: "PLAN_COMPLETED", message: "This plan has been completed." });
+        return;
+      }
+
       progress = new DailyProgress({
-        plan_id:               planId,
-        user_id:               userId,
-        day_number:            previousDaysCount + 1,
-        date:                  new Date(),
-        eaten_template_menus:  [],
-        excess_daily_foods:    [],
-        status:                'tracking',
+        plan_id:              planId,
+        user_id:              userId,
+        day_number:           previousDaysCount + 1,
+        date:                 new Date(),
+        eaten_template_menus: [],
+        excess_daily_foods:   [],
+        status:               'tracking',
       });
       await progress.save();
     }
 
     res.status(200).json(progress);
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// @desc    Read today's status without creating a record — used by dashboard cards
+// @route   GET /api/progress/:planId/today-status
+// Returns: { exists: false } | { exists: true, status, eaten_count, day_number }
+export const getTodayStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { planId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) { res.status(401).json({ message: "Unauthorized." }); return; }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const progress = await DailyProgress.findOne({
+      plan_id: planId,
+      user_id: userId,
+      date: { $gte: todayStart, $lt: todayEnd },
+    });
+
+    if (!progress) {
+      res.status(200).json({ exists: false });
+      return;
+    }
+
+    res.status(200).json({
+      exists:       true,
+      status:       progress.status,                              // 'tracking' | 'recommendation' | 'saved'
+      eaten_count:  progress.eaten_template_menus.length,        // how many foods ticked
+      day_number:   progress.day_number,
+    });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -70,8 +118,10 @@ export const updateTracking = async (req: AuthRequest, res: Response): Promise<v
     if (eaten_template_menus !== undefined) progress.eaten_template_menus = eaten_template_menus;
     if (excess_daily_foods   !== undefined) progress.excess_daily_foods   = excess_daily_foods;
 
-    const updated = await progress.save();
-    res.status(200).json(updated);
+    await progress.save();
+
+    const populated = await DailyProgress.findById(progress._id).populate('eaten_template_menus');
+    res.status(200).json(populated);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -102,7 +152,6 @@ export const completeTracking = async (req: AuthRequest, res: Response): Promise
       totalCalories += food.macros?.calories || 0;
       totalPrice    += food.price || 0;
     });
-
     progress.excess_daily_foods.forEach((food) => {
       totalCalories += food.calories || 0;
       totalPrice    += food.price    || 0;
@@ -110,8 +159,7 @@ export const completeTracking = async (req: AuthRequest, res: Response): Promise
 
     const calTarget        = plan.macro_targets.daily_cal;
     const caloriesExceeded = Math.max(0, totalCalories - calTarget);
-
-    let budgetExceeded = 0;
+    let   budgetExceeded   = 0;
     if (plan.priority === 'budget' && plan.budget_limit !== null) {
       budgetExceeded = Math.max(0, totalPrice - plan.budget_limit);
     }
@@ -120,19 +168,20 @@ export const completeTracking = async (req: AuthRequest, res: Response): Promise
     progress.recommendation_data.calories_exceeded = caloriesExceeded;
     progress.recommendation_data.budget_exceeded   = budgetExceeded;
 
-    const saved = await progress.save();
+    await progress.save();
 
+    const populated = await DailyProgress.findById(progress._id).populate('eaten_template_menus');
     res.status(200).json({
       message: "Daily tracking completed. Ready for review.",
       summary: { totalCalories, totalPrice, calTarget, budgetLimit: plan.budget_limit },
-      data:    saved,
+      data:    populated,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-// @desc    Finalize the day and save exercise progress
+// @desc    Finalize the day — auto-completes plan when last day is saved
 // @route   PUT /api/progress/:progressId/save
 export const saveProgress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -148,12 +197,27 @@ export const saveProgress = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     progress.status = 'saved';
-    if (exercise_selected)        progress.recommendation_data.exercise_selected    = exercise_selected;
-    if (exercise_time_minutes)    progress.recommendation_data.exercise_time_minutes = exercise_time_minutes;
-    if (actually_exercised !== undefined) progress.recommendation_data.actually_exercised = actually_exercised;
+    if (exercise_selected)               progress.recommendation_data.exercise_selected    = exercise_selected;
+    if (exercise_time_minutes)           progress.recommendation_data.exercise_time_minutes = exercise_time_minutes;
+    if (actually_exercised !== undefined) progress.recommendation_data.actually_exercised   = actually_exercised;
 
-    const saved = await progress.save();
-    res.status(200).json({ message: "Day finalized and saved!", data: saved });
+    await progress.save();
+
+    // Auto-complete plan if this was the last day
+    const plan = await Plan.findById(progress.plan_id);
+    let planCompleted = false;
+    if (plan && plan.status === 'active' && progress.day_number >= plan.duration) {
+      plan.status = 'completed';
+      await plan.save();
+      planCompleted = true;
+    }
+
+    const populated = await DailyProgress.findById(progress._id).populate('eaten_template_menus');
+    res.status(200).json({
+      message:        "Day finalized and saved!",
+      plan_completed: planCompleted,
+      data:           populated,
+    });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -173,11 +237,11 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
     }).sort({ day_number: 1 });
 
     const chartData = history.map(day => ({
-      day_number:         day.day_number,
-      date:               day.date,
-      calories_exceeded:  day.recommendation_data?.calories_exceeded  || 0,
-      budget_exceeded:    day.recommendation_data?.budget_exceeded    || 0,
-      exercised:          day.recommendation_data?.actually_exercised || false,
+      day_number:        day.day_number,
+      date:              day.date,
+      calories_exceeded: day.recommendation_data?.calories_exceeded  || 0,
+      budget_exceeded:   day.recommendation_data?.budget_exceeded    || 0,
+      exercised:         day.recommendation_data?.actually_exercised || false,
     }));
 
     res.status(200).json({
@@ -185,6 +249,24 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
       total_days_tracked: chartData.length,
       data:               chartData,
     });
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// @desc    Get a single progress entry by its _id (used by Recommendation page)
+// @route   GET /api/progress/entry/:progressId
+export const getProgressById = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { progressId } = req.params;
+    const userId = req.user?.id;
+
+    const progress = await DailyProgress.findOne({ _id: progressId, user_id: userId })
+      .populate('eaten_template_menus');
+
+    if (!progress) { res.status(404).json({ message: "Progress entry not found." }); return; }
+
+    res.status(200).json(progress);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }

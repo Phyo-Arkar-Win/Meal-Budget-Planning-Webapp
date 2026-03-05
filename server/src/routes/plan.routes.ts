@@ -1,24 +1,26 @@
 // server/src/routes/plan.routes.ts
 import { Router } from "express";
+import { protect } from "../middleware/auth.middleware";
 import {
   createPlan,
   getUserPlans,
   getPlanById,
+  deletePlan,
+  previewMacros,
   addMealToPlan,
   removeMealFromPlan,
-  previewMacros,
+  extendPlan,
 } from "../controllers/plan.controller";
-import { protect } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.use(protect);
-
-router.get("/",                         getUserPlans);
-router.post("/",                        createPlan);
-router.post("/preview-macros",          previewMacros);      
-router.get("/:planId",                  getPlanById);         
-router.post("/:planId/meals",           addMealToPlan);       
-router.delete("/:planId/meals/:foodId", removeMealFromPlan);  
+router.post("/preview-macros",          protect, previewMacros);
+router.get("/",                          protect, getUserPlans);
+router.post("/",                         protect, createPlan);
+router.get("/:planId",                   protect, getPlanById);
+router.delete("/:planId",                protect, deletePlan);
+router.put("/:planId/extend",            protect, extendPlan);        
+router.post("/:planId/meals",            protect, addMealToPlan);
+router.delete("/:planId/meals/:foodId",  protect, removeMealFromPlan);
 
 export default router;

@@ -8,16 +8,15 @@ interface AuthRequest extends Request {
   user?: { id: string };
 }
 
-// @route   POST /api/plans
+// POST /api/plans
 export const createPlan = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, fitness_goal, activity_level, priority, budget_limit, duration, template_menus } = req.body;
     const userId = req.user?.id;
-
     if (!userId) { res.status(401).json({ message: "Unauthorized." }); return; }
 
     const user = await User.findById(userId);
-    if (!user)  { res.status(404).json({ message: "User not found." }); return; }
+    if (!user) { res.status(404).json({ message: "User not found." }); return; }
 
     if (priority === 'budget' && (budget_limit === undefined || budget_limit === null)) {
       res.status(400).json({ message: "Budget limit is required when priority is budget." }); return;
@@ -28,10 +27,8 @@ export const createPlan = async (req: AuthRequest, res: Response): Promise<void>
 
     const newPlan = new Plan({
       owner: userId,
-      name:  name || `${fitness_goal} Plan`,   // fallback if somehow empty
-      fitness_goal,
-      activity_level,
-      priority,
+      name:  name || `${fitness_goal} Plan`,
+      fitness_goal, activity_level, priority,
       budget_limit: priority === 'nutrient' ? null : budget_limit,
       duration,
       template_menus: template_menus || [],
@@ -44,15 +41,15 @@ export const createPlan = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
-    const savedPlan = await newPlan.save();
-    await savedPlan.populate('template_menus');
-    res.status(201).json(savedPlan);
+    const saved = await newPlan.save();
+    await saved.populate('template_menus');
+    res.status(201).json(saved);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-// @route   GET /api/plans
+// GET /api/plans
 export const getUserPlans = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
@@ -64,11 +61,11 @@ export const getUserPlans = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
-// @route   GET /api/plans/:planId
+// GET /api/plans/:planId
 export const getPlanById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const plan = await Plan.findOne({ _id: req.params.planId, owner: userId }).populate('template_menus');
+    const plan   = await Plan.findOne({ _id: req.params.planId, owner: userId }).populate('template_menus');
     if (!plan) { res.status(404).json({ message: "Plan not found." }); return; }
     res.status(200).json(plan);
   } catch (error: any) {
@@ -76,37 +73,51 @@ export const getPlanById = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-// @route   POST /api/plans/:planId/meals
+// DELETE /api/plans/:planId
+export const deletePlan = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const plan   = await Plan.findOneAndDelete({ _id: req.params.planId, owner: userId });
+    if (!plan) { res.status(404).json({ message: "Plan not found or not yours." }); return; }
+    res.status(200).json({ message: "Plan deleted successfully." });
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// POST /api/plans/:planId/meals
 export const addMealToPlan = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { foodId } = req.body;
-    const { planId } = req.params;
-    const updatedPlan = await Plan.findByIdAndUpdate(planId, { $push: { template_menus: foodId } }, { new: true }).populate('template_menus');
-    if (!updatedPlan) { res.status(404).json({ message: "Plan not found" }); return; }
-    res.status(200).json(updatedPlan);
+    const updated = await Plan.findByIdAndUpdate(
+      req.params.planId, { $push: { template_menus: foodId } }, { new: true }
+    ).populate('template_menus');
+    if (!updated) { res.status(404).json({ message: "Plan not found" }); return; }
+    res.status(200).json(updated);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-// @route   DELETE /api/plans/:planId/meals/:foodId
+// DELETE /api/plans/:planId/meals/:foodId
 export const removeMealFromPlan = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { planId, foodId } = req.params;
-    const updatedPlan = await Plan.findByIdAndUpdate(planId, { $pull: { template_menus: foodId } }, { new: true }).populate('template_menus');
-    if (!updatedPlan) { res.status(404).json({ message: "Plan not found" }); return; }
-    res.status(200).json(updatedPlan);
+    const updated = await Plan.findByIdAndUpdate(
+      req.params.planId, { $pull: { template_menus: req.params.foodId } }, { new: true }
+    ).populate('template_menus');
+    if (!updated) { res.status(404).json({ message: "Plan not found" }); return; }
+    res.status(200).json(updated);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-// @route   POST /api/plans/preview-macros
+// POST /api/plans/preview-macros
 export const previewMacros = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { fitness_goal, activity_level } = req.body;
     const userId = req.user?.id;
-    const user = await User.findById(userId);
+    const user   = await User.findById(userId);
     if (!user) { res.status(404).json({ message: "User not found." }); return; }
 
     const { protein_target, fat_target, sugar_target, carb_target, bmr, tdee, totalDailyCalories } =
@@ -118,8 +129,36 @@ export const previewMacros = async (req: AuthRequest, res: Response): Promise<vo
       protein:      protein_target,
       fat:          fat_target,
       sugar:        sugar_target,
-      bmr,
-      tdee,
+      bmr, tdee,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+// PUT /api/plans/:planId/extend
+// @desc  Add extra days to a completed plan and reactivate it
+export const extendPlan = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { additional_days } = req.body;
+
+    if (!additional_days || additional_days < 1) {
+      res.status(400).json({ message: "additional_days must be at least 1." }); return;
+    }
+
+    const plan = await Plan.findOne({ _id: req.params.planId, owner: userId });
+    if (!plan) { res.status(404).json({ message: "Plan not found." }); return; }
+
+    plan.duration += additional_days;
+    plan.status    = 'active';
+    await plan.save();
+
+    await plan.populate('template_menus');
+    res.status(200).json({
+      message:  `Plan extended by ${additional_days} days. Now active again.`,
+      new_duration: plan.duration,
+      data:     plan,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });

@@ -296,7 +296,7 @@ export default function CreatePlan() {
                 <button type="button"
                   onClick={() => { if (canProceed()) setStep(s => s + 1); }}
                   disabled={!canProceed()}
-                  className="flex-[2] bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2">
+                  className="flex-2 bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2">
                   Continue
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -304,7 +304,7 @@ export default function CreatePlan() {
                 </button>
               ) : (
                 <button type="button" onClick={handleSubmit} disabled={submitting}
-                  className="flex-[2] bg-amber-400 hover:bg-amber-500 text-stone-900 font-bold py-3.5 rounded-xl transition-all duration-200 disabled:opacity-50 text-sm flex items-center justify-center gap-2">
+                  className="flex-2 bg-amber-400 hover:bg-amber-500 text-stone-900 font-bold py-3.5 rounded-xl transition-all duration-200 disabled:opacity-50 text-sm flex items-center justify-center gap-2">
                   {submitting
                     ? <div className="w-4 h-4 border-2 border-stone-700 border-t-transparent rounded-full animate-spin" />
                     : <>Create Plan <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg></>}
