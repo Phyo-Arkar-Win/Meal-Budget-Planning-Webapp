@@ -10,6 +10,23 @@ import type { DailyProgress, ExcessFood } from "../../types/progress";
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
+// Positional restore: given an ordered list of saved IDs (may have duplicates)
+// and the plan's template_menus, returns a Set of indices that were eaten.
+// Consumes matches one-at-a-time so two cupcakes at idx 0 and idx 2 are independent.
+function buildTickedIndices(templateMenus: any[], savedIds: string[]): Set<number> {
+  const indices   = new Set<number>();
+  const remaining = [...savedIds]; // consume from this pool
+  templateMenus.forEach((food, idx) => {
+    const fid      = food._id?.toString() ?? food.toString();
+    const matchIdx = remaining.findIndex(id => (id?.toString?.() ?? id) === fid);
+    if (matchIdx !== -1) {
+      indices.add(idx);
+      remaining.splice(matchIdx, 1); // consume so next duplicate isn't double-matched
+    }
+  });
+  return indices;
+}
+
 export default function DailyTrack() {
   const { planId } = useParams<{ planId: string }>();
   const navigate   = useNavigate();
@@ -21,7 +38,7 @@ export default function DailyTrack() {
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState("");
 
-  // Tick state keyed by INDEX — handles duplicate foods correctly
+  // Tick state keyed by INDEX — handles duplicate foods independently
   const [tickedIndices, setTickedIndices] = useState<Set<number>>(new Set());
   const [excessList,    setExcessList]    = useState<ExcessFood[]>([]);
 
@@ -49,20 +66,12 @@ export default function DailyTrack() {
         setDbFoods(foods);
         setExcessList(prog.excess_daily_foods ?? []);
 
-        // Rebuild tickedIndices from saved eaten_template_menus
-        // Consume matches one-at-a-time so duplicate foods restore independently
-        const savedIds  = [...(prog.eaten_template_menus as string[])];
-        const indices   = new Set<number>();
-        const remaining = [...savedIds];
-        p.template_menus.forEach((food: any, idx: number) => {
-          const fid      = food._id?.toString() ?? food.toString();
-          const matchIdx = remaining.findIndex(id => id === fid || id?.toString() === fid);
-          if (matchIdx !== -1) {
-            indices.add(idx);
-            remaining.splice(matchIdx, 1);
-          }
-        });
-        setTickedIndices(indices);
+        // eaten_template_menus may be populated Food objects OR raw ObjectId strings
+        // Normalise to plain strings for positional matching
+        const savedIds = (prog.eaten_template_menus as any[]).map(
+          (f: any) => f?._id?.toString() ?? f?.toString()
+        );
+        setTickedIndices(buildTickedIndices(p.template_menus, savedIds));
       } catch (e: any) { setError(e.message || "Failed to load"); }
       finally { setLoading(false); }
     })();
@@ -71,7 +80,7 @@ export default function DailyTrack() {
   const status     = progress?.status ?? "tracking";
   const isTracking = status === "tracking";
 
-  // Convert tickedIndices → Food _id array for backend
+  // Convert tickedIndices → _id array for backend (preserves duplicates positionally)
   const tickedFoodIds = useMemo((): string[] => {
     if (!plan) return [];
     return plan.template_menus
@@ -81,27 +90,25 @@ export default function DailyTrack() {
   }, [plan, tickedIndices]);
 
   // ── Calorie & spend totals ────────────────────────────────────────────────
-  // When tracking: calculate live from local tick state
-  // When recommendation/saved: read from server data so display is always accurate
+  // tracking → live from local state
+  // recommendation/saved → from populated server data (always accurate)
   const { totalCal, totalSpend } = useMemo(() => {
     if (!plan) return { totalCal: 0, totalSpend: 0 };
 
     if (isTracking) {
-      // Live local calculation
       const templateCal   = plan.template_menus.filter((_, i) => tickedIndices.has(i)).reduce((s, f) => s + f.macros.calories, 0);
       const templateSpend = plan.template_menus.filter((_, i) => tickedIndices.has(i)).reduce((s, f) => s + f.price, 0);
       const excessCal     = excessList.reduce((s, e) => s + e.calories, 0);
       const excessSpend   = excessList.reduce((s, e) => s + e.price, 0);
       return { totalCal: templateCal + excessCal, totalSpend: templateSpend + excessSpend };
     } else {
-      // After completing/saving — derive from what was actually saved on the server.
-      // eaten_template_menus may be populated Food objects or plain _id strings.
-      const savedFoods   = (progress?.eaten_template_menus ?? []) as any[];
-      const templateCal  = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.calories ?? 0), 0);
-      const templateSpend= savedFoods.reduce((s: number, f: any) => s + (f?.price ?? 0), 0);
-      const savedExcess  = progress?.excess_daily_foods ?? [];
-      const excessCal    = savedExcess.reduce((s, e) => s + e.calories, 0);
-      const excessSpend  = savedExcess.reduce((s, e) => s + e.price, 0);
+      // populated Food objects from server
+      const savedFoods    = (progress?.eaten_template_menus ?? []) as any[];
+      const templateCal   = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.calories ?? 0), 0);
+      const templateSpend = savedFoods.reduce((s: number, f: any) => s + (f?.price ?? 0), 0);
+      const savedExcess   = progress?.excess_daily_foods ?? [];
+      const excessCal     = savedExcess.reduce((s, e) => s + e.calories, 0);
+      const excessSpend   = savedExcess.reduce((s, e) => s + e.price, 0);
       return { totalCal: templateCal + excessCal, totalSpend: templateSpend + excessSpend };
     }
   }, [plan, isTracking, tickedIndices, excessList, progress]);
@@ -114,6 +121,18 @@ export default function DailyTrack() {
     () => dbFoods.filter(f => f.name.toLowerCase().includes(dbSearch.toLowerCase())),
     [dbFoods, dbSearch]
   );
+
+  // ── displayMenus: what each row shows ────────────────────────────────────
+  // tracking → driven by tickedIndices (local, live)
+  // recommendation/saved → driven by positional restore from server data
+  //   Uses the same buildTickedIndices logic so duplicate foods are handled correctly
+  const displayEatenIndices = useMemo((): Set<number> => {
+    if (isTracking || !plan || !progress) return tickedIndices;
+    const savedIds = (progress.eaten_template_menus as any[]).map(
+      (f: any) => f?._id?.toString() ?? f?.toString()
+    );
+    return buildTickedIndices(plan.template_menus, savedIds);
+  }, [isTracking, plan, progress, tickedIndices]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -131,11 +150,17 @@ export default function DailyTrack() {
     setSaving(true);
     setError("");
     try {
+      // updateTracking now returns populated data → restore works on next load
       const updated = await updateTracking(progress._id, {
         eaten_template_menus: tickedFoodIds,
         excess_daily_foods:   excessList,
       });
       setProgress(updated);
+      // Re-sync tickedIndices from the freshly populated server response
+      const savedIds = (updated.eaten_template_menus as any[]).map(
+        (f: any) => f?._id?.toString() ?? f?.toString()
+      );
+      setTickedIndices(buildTickedIndices(plan!.template_menus, savedIds));
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -204,25 +229,9 @@ export default function DailyTrack() {
     </div>
   );
 
-  const progressId = progress._id;
-
-  // What to show in the "eaten" list for recommendation/saved states
-  // Use the server's eaten_template_menus (may be populated objects or IDs)
-  const displayMenus: { name: string; calories: number; price: number; eaten: boolean }[] =
-    plan.template_menus.map((food, idx) => ({
-      name:     food.name,
-      calories: food.macros.calories,
-      price:    food.price,
-      eaten:    isTracking
-        ? tickedIndices.has(idx)
-        : (() => {
-            // Check if this food was saved — consume matches like the restore logic
-            const saved = (progress.eaten_template_menus as any[]).map(
-              (f: any) => f?._id?.toString() ?? f?.toString()
-            );
-            return saved.includes(food._id?.toString());
-          })(),
-    }));
+  const progressId  = progress._id;
+  const displayList = isTracking ? excessList : (progress.excess_daily_foods ?? []);
+  const eatenCount  = displayEatenIndices.size;
 
   return (
     <>
@@ -362,12 +371,10 @@ export default function DailyTrack() {
 
           {/* Calorie card */}
           <div className={`rounded-3xl p-6 text-white shadow-md fu transition-colors duration-500 ${
-            status === "saved"          ? "bg-emerald-700"  :
-            isOver                      ? "bg-red-600"      : "bg-stone-900"
+            status === "saved" ? "bg-emerald-700" : isOver ? "bg-red-600" : "bg-stone-900"
           }`}>
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/50 mb-1">
-              {status === "saved"          ? "Final calories"  :
-               isOver                      ? "Over target by"  : "Calories today"}
+              {status === "saved" ? "Final calories" : isOver ? "Over target by" : "Calories today"}
             </p>
             {isOver && status !== "saved"
               ? <p className="serif text-4xl text-red-200">{fmt(totalCal - calTarget)} <span className="text-xl font-sans font-normal">kcal</span></p>
@@ -405,34 +412,39 @@ export default function DailyTrack() {
           {/* Template meals */}
           <div className="fu d1">
             <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3">
-              Template Meals · {displayMenus.filter(m => m.eaten).length}/{plan.template_menus.length} eaten
+              Template Meals · {eatenCount}/{plan.template_menus.length} eaten
             </p>
             <div className="flex flex-col gap-2">
-              {displayMenus.map((food, idx) => (
-                <button key={idx} type="button"
-                  onClick={() => handleToggle(idx)}
-                  disabled={!isTracking}
-                  className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all duration-200 text-left ${
-                    food.eaten ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-100 shadow-sm"
-                  } ${isTracking ? "hover:border-amber-300 cursor-pointer" : "cursor-default opacity-80"}`}>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                    food.eaten ? "bg-emerald-500 border-emerald-500" : "border-stone-300"
-                  }`}>
-                    {food.eaten && (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm truncate ${food.eaten ? "text-emerald-800 line-through decoration-emerald-400" : "text-stone-800"}`}>
-                      {food.name}
-                    </p>
-                    <p className="text-xs text-stone-400 mt-0.5">{food.calories} kcal · ฿{food.price}</p>
-                  </div>
-                  {food.eaten && <span className="text-emerald-500 text-xs font-bold shrink-0">eaten</span>}
-                </button>
-              ))}
+              {plan.template_menus.map((food, idx) => {
+                // Always keyed and driven by index — never by _id
+                // displayEatenIndices correctly handles duplicates positionally
+                const eaten = displayEatenIndices.has(idx);
+                return (
+                  <button key={idx} type="button"
+                    onClick={() => handleToggle(idx)}
+                    disabled={!isTracking}
+                    className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all duration-200 text-left ${
+                      eaten ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-100 shadow-sm"
+                    } ${isTracking ? "hover:border-amber-300 cursor-pointer" : "cursor-default opacity-80"}`}>
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                      eaten ? "bg-emerald-500 border-emerald-500" : "border-stone-300"
+                    }`}>
+                      {eaten && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-semibold text-sm truncate ${eaten ? "text-emerald-800 line-through decoration-emerald-400" : "text-stone-800"}`}>
+                        {food.name}
+                      </p>
+                      <p className="text-xs text-stone-400 mt-0.5">{food.macros.calories} kcal · ฿{food.price}</p>
+                    </div>
+                    {eaten && <span className="text-emerald-500 text-xs font-bold shrink-0">eaten</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -440,7 +452,7 @@ export default function DailyTrack() {
           <div className="fu d2">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">
-                Extra Foods · {(isTracking ? excessList : progress.excess_daily_foods ?? []).length} added
+                Extra Foods · {displayList.length} added
               </p>
               {isTracking && (
                 <button onClick={() => setShowPicker(true)}
@@ -452,31 +464,28 @@ export default function DailyTrack() {
                 </button>
               )}
             </div>
-            {(() => {
-              const list = isTracking ? excessList : (progress.excess_daily_foods ?? []);
-              return list.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {list.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-stone-800 text-sm truncate">{item.name}</p>
-                        <p className="text-xs text-stone-400 mt-0.5">{item.calories} kcal · ฿{item.price}</p>
-                      </div>
-                      {isTracking && (
-                        <button onClick={() => handleRemoveExcess(idx)}
-                          className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-500 flex items-center justify-center font-bold transition shrink-0">
-                          ×
-                        </button>
-                      )}
+            {displayList.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {displayList.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-stone-800 text-sm truncate">{item.name}</p>
+                      <p className="text-xs text-stone-400 mt-0.5">{item.calories} kcal · ฿{item.price}</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-5 border-2 border-dashed rounded-2xl text-stone-400 text-sm border-stone-100">
-                  {isTracking ? "No extra foods yet" : "No extra foods logged"}
-                </div>
-              );
-            })()}
+                    {isTracking && (
+                      <button onClick={() => handleRemoveExcess(idx)}
+                        className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-500 flex items-center justify-center font-bold transition shrink-0">
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-5 border-2 border-dashed border-stone-100 rounded-2xl text-stone-400 text-sm">
+                {isTracking ? "No extra foods yet" : "No extra foods logged"}
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}

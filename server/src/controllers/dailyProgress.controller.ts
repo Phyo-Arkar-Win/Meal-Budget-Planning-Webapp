@@ -13,7 +13,7 @@ interface AuthRequest extends Request {
 export const getTodayProgress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { planId } = req.params;
-    const userId = req.user?.id; // ← fixed: use protect middleware, not testing helper
+    const userId = req.user?.id;
 
     if (!userId) { res.status(401).json({ message: "Unauthorized." }); return; }
 
@@ -34,13 +34,13 @@ export const getTodayProgress = async (req: AuthRequest, res: Response): Promise
     if (!progress) {
       const previousDaysCount = await DailyProgress.countDocuments({ plan_id: planId });
       progress = new DailyProgress({
-        plan_id:               planId,
-        user_id:               userId,
-        day_number:            previousDaysCount + 1,
-        date:                  new Date(),
-        eaten_template_menus:  [],
-        excess_daily_foods:    [],
-        status:                'tracking',
+        plan_id:              planId,
+        user_id:              userId,
+        day_number:           previousDaysCount + 1,
+        date:                 new Date(),
+        eaten_template_menus: [],
+        excess_daily_foods:   [],
+        status:               'tracking',
       });
       await progress.save();
     }
@@ -70,8 +70,11 @@ export const updateTracking = async (req: AuthRequest, res: Response): Promise<v
     if (eaten_template_menus !== undefined) progress.eaten_template_menus = eaten_template_menus;
     if (excess_daily_foods   !== undefined) progress.excess_daily_foods   = excess_daily_foods;
 
-    const updated = await progress.save();
-    res.status(200).json(updated);
+    await progress.save();
+
+    // ── KEY FIX: populate before returning so the frontend can restore tick state ──
+    const populated = await DailyProgress.findById(progress._id).populate('eaten_template_menus');
+    res.status(200).json(populated);
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -122,10 +125,13 @@ export const completeTracking = async (req: AuthRequest, res: Response): Promise
 
     const saved = await progress.save();
 
+    // Populate before returning
+    const populated = await DailyProgress.findById(saved._id).populate('eaten_template_menus');
+
     res.status(200).json({
       message: "Daily tracking completed. Ready for review.",
       summary: { totalCalories, totalPrice, calTarget, budgetLimit: plan.budget_limit },
-      data:    saved,
+      data:    populated,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -148,12 +154,14 @@ export const saveProgress = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     progress.status = 'saved';
-    if (exercise_selected)        progress.recommendation_data.exercise_selected    = exercise_selected;
-    if (exercise_time_minutes)    progress.recommendation_data.exercise_time_minutes = exercise_time_minutes;
-    if (actually_exercised !== undefined) progress.recommendation_data.actually_exercised = actually_exercised;
+    if (exercise_selected)               progress.recommendation_data.exercise_selected    = exercise_selected;
+    if (exercise_time_minutes)           progress.recommendation_data.exercise_time_minutes = exercise_time_minutes;
+    if (actually_exercised !== undefined) progress.recommendation_data.actually_exercised   = actually_exercised;
 
-    const saved = await progress.save();
-    res.status(200).json({ message: "Day finalized and saved!", data: saved });
+    await progress.save();
+
+    const populated = await DailyProgress.findById(progress._id).populate('eaten_template_menus');
+    res.status(200).json({ message: "Day finalized and saved!", data: populated });
   } catch (error: any) {
     res.status(500).json({ message: "Server Error", error: error.message });
   }
@@ -173,11 +181,11 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
     }).sort({ day_number: 1 });
 
     const chartData = history.map(day => ({
-      day_number:         day.day_number,
-      date:               day.date,
-      calories_exceeded:  day.recommendation_data?.calories_exceeded  || 0,
-      budget_exceeded:    day.recommendation_data?.budget_exceeded    || 0,
-      exercised:          day.recommendation_data?.actually_exercised || false,
+      day_number:        day.day_number,
+      date:              day.date,
+      calories_exceeded: day.recommendation_data?.calories_exceeded  || 0,
+      budget_exceeded:   day.recommendation_data?.budget_exceeded    || 0,
+      exercised:         day.recommendation_data?.actually_exercised || false,
     }));
 
     res.status(200).json({
@@ -190,6 +198,8 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
+// @desc    Get a single progress entry by its _id (used by Recommendation page)
+// @route   GET /api/progress/entry/:progressId
 export const getProgressById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { progressId } = req.params;
