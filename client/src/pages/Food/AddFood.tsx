@@ -1,13 +1,7 @@
-import { useState, useRef } from "react";
+// client/src/pages/FoodDatabase/AddFood.tsx
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { createFood } from "../../api/foodApi";
-
-const INITIAL_CANTEENS = [
-  "Main Cafeteria",
-  "Engineering Canteen",
-  "Science Canteen",
-  "Arts Faculty Food Court",
-];
+import { createFood, getFoods } from "../../api/foodApi";
 
 const AddFood = () => {
   const navigate = useNavigate();
@@ -15,7 +9,9 @@ const AddFood = () => {
   const [foodName, setFoodName] = useState("");
   const [price, setPrice]       = useState("");
 
-  const [canteenList,        setCanteenList]        = useState(INITIAL_CANTEENS);
+  // ── Canteen list derived from live food database ──────────────────────────
+  const [canteenList,        setCanteenList]        = useState<string[]>([]);
+  const [canteensLoading,    setCanteensLoading]    = useState(true);
   const [selectedCanteen,    setSelectedCanteen]    = useState("");
   const [canteenSearch,      setCanteenSearch]      = useState("");
   const [isDropdownOpen,     setIsDropdownOpen]     = useState(false);
@@ -33,7 +29,18 @@ const AddFood = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
 
-  // ── Image ────────────────────────────────────────────────────────────────────
+  // Fetch all foods once, derive unique canteens — same logic as FoodDatabase
+  useEffect(() => {
+    getFoods()
+      .then(foods => {
+        const unique = Array.from(new Set(foods.map(f => f.canteen).filter(Boolean)));
+        setCanteenList(unique);
+      })
+      .catch(() => setCanteenList([]))
+      .finally(() => setCanteensLoading(false));
+  }, []);
+
+  // ── Image ─────────────────────────────────────────────────────────────────
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -48,11 +55,11 @@ const AddFood = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ── Macros ───────────────────────────────────────────────────────────────────
+  // ── Macros ────────────────────────────────────────────────────────────────
   const handleMacroChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setMacros({ ...macros, [e.target.name]: e.target.value });
 
-  // ── Canteen dropdown ─────────────────────────────────────────────────────────
+  // ── Canteen dropdown ──────────────────────────────────────────────────────
   const handleSelectCanteen = (name: string) => {
     setSelectedCanteen(name);
     setCanteenSearch("");
@@ -67,8 +74,12 @@ const AddFood = () => {
   };
 
   const confirmCreateCanteen = () => {
-    setCanteenList([...canteenList, pendingCanteenName]);
-    setSelectedCanteen(pendingCanteenName);
+    // Add to local list so it's immediately selectable
+    const newName = pendingCanteenName;
+    setCanteenList(prev =>
+      prev.includes(newName) ? prev : [...prev, newName]
+    );
+    setSelectedCanteen(newName);
     setCanteenSearch("");
     setShowCanteenModal(false);
     setPendingCanteenName("");
@@ -86,7 +97,7 @@ const AddFood = () => {
     c => c.toLowerCase() === canteenSearch.trim().toLowerCase()
   );
 
-  // ── Submit ───────────────────────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -111,7 +122,7 @@ const AddFood = () => {
             sugar:    Number(macros.sugar),
           },
         },
-        imageFile // passed separately — FormData is built inside foodApi
+        imageFile
       );
       navigate(-1);
     } catch (err: any) {
@@ -139,10 +150,12 @@ const AddFood = () => {
               to the system? All users will be able to see this location.
             </p>
             <div className="flex gap-3">
-              <button onClick={cancelCreateCanteen} className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition">
+              <button onClick={cancelCreateCanteen}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition">
                 Cancel
               </button>
-              <button onClick={confirmCreateCanteen} className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-900 bg-amber-400 hover:bg-amber-500 transition shadow-sm">
+              <button onClick={confirmCreateCanteen}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-stone-900 bg-amber-400 hover:bg-amber-500 transition shadow-sm">
                 Yes, Create It
               </button>
             </div>
@@ -152,7 +165,8 @@ const AddFood = () => {
 
       {/* ── Header ── */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20 shadow-sm px-6 py-4 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-stone-400 hover:text-stone-900 transition flex items-center gap-2">
+        <button onClick={() => navigate(-1)}
+          className="text-stone-400 hover:text-stone-900 transition flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -178,7 +192,6 @@ const AddFood = () => {
             {imagePreview ? (
               <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group">
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                {/* Hover overlay — two actions */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
                   <button type="button" onClick={() => fileInputRef.current?.click()}
                     className="bg-white text-stone-900 px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-amber-400 transition">
@@ -211,35 +224,55 @@ const AddFood = () => {
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl p-4 text-stone-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition" />
             </div>
 
-            {/* Canteen dropdown */}
+            {/* ── Canteen dropdown ── */}
             <div className="relative">
-              <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Canteen Location</label>
-              <div onClick={() => setIsDropdownOpen(true)}
-                className={`w-full border rounded-xl p-4 flex items-center justify-between cursor-text transition ${isDropdownOpen ? "border-amber-400 bg-white" : "border-stone-200 bg-stone-50"}`}>
-                {isDropdownOpen ? (
-                  <input autoFocus type="text" value={canteenSearch}
-                    onChange={e => setCanteenSearch(e.target.value)}
-                    placeholder="Search or type new canteen..."
-                    className="bg-transparent outline-none w-full text-stone-900"
-                    onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)} />
-                ) : (
-                  <span className={selectedCanteen ? "text-stone-900 font-bold" : "text-stone-400"}>
-                    {selectedCanteen || "Select a canteen..."}
-                  </span>
-                )}
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
+              <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">
+                Canteen Location
+              </label>
+
+              {canteensLoading ? (
+                <div className="w-full border border-stone-200 bg-stone-50 rounded-xl p-4 flex items-center gap-2 text-stone-400 text-sm">
+                  <div className="w-4 h-4 border-2 border-stone-300 border-t-amber-400 rounded-full animate-spin" />
+                  Loading canteens…
+                </div>
+              ) : (
+                <div onClick={() => setIsDropdownOpen(true)}
+                  className={`w-full border rounded-xl p-4 flex items-center justify-between cursor-text transition ${
+                    isDropdownOpen ? "border-amber-400 bg-white" : "border-stone-200 bg-stone-50"
+                  }`}>
+                  {isDropdownOpen ? (
+                    <input autoFocus type="text" value={canteenSearch}
+                      onChange={e => setCanteenSearch(e.target.value)}
+                      placeholder="Search or type new canteen..."
+                      className="bg-transparent outline-none w-full text-stone-900"
+                      onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)} />
+                  ) : (
+                    <span className={selectedCanteen ? "text-stone-900 font-bold" : "text-stone-400"}>
+                      {selectedCanteen || "Select a canteen..."}
+                    </span>
+                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              )}
 
               {isDropdownOpen && (
                 <div className="absolute top-full mt-2 w-full bg-white border border-stone-200 rounded-2xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
-                  {filteredCanteens.map(c => (
-                    <div key={c} onClick={() => handleSelectCanteen(c)}
-                      className="p-4 hover:bg-stone-50 border-b border-stone-100 cursor-pointer text-stone-700 font-medium">
-                      {c}
+                  {filteredCanteens.length > 0 ? (
+                    filteredCanteens.map(c => (
+                      <div key={c} onClick={() => handleSelectCanteen(c)}
+                        className="p-4 hover:bg-stone-50 border-b border-stone-100 cursor-pointer text-stone-700 font-medium">
+                        {c}
+                      </div>
+                    ))
+                  ) : canteenSearch === "" ? (
+                    <div className="p-4 text-stone-400 italic text-sm text-center">
+                      No canteens yet — type to create one
                     </div>
-                  ))}
+                  ) : null}
+
+                  {/* Create new canteen option — only shown when typed value has no exact match */}
                   {canteenSearch.trim() !== "" && !isExactMatch && (
                     <div onClick={handleInitiateCreateCanteen}
                       className="p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer flex items-center gap-2 font-bold">
@@ -248,9 +281,6 @@ const AddFood = () => {
                       </svg>
                       Create "{canteenSearch}"
                     </div>
-                  )}
-                  {filteredCanteens.length === 0 && canteenSearch === "" && (
-                    <div className="p-4 text-stone-400 italic text-sm text-center">Start typing to search...</div>
                   )}
                 </div>
               )}
