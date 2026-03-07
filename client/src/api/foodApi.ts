@@ -1,5 +1,5 @@
 import type { Food } from "../types/plan";
-import type { CreateFoodPayload } from "../types/food";
+import type { AddFoodPayload } from "../types/food";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -28,7 +28,7 @@ export const getFoodById = async (id: string): Promise<Food> => {
 
 // Sends multipart/form-data so multer can forward the image to Cloudinary.
 // macros is JSON-stringified since FormData values must be strings.
-export const createFood = async (payload: CreateFoodPayload, imageFile?: File | null): Promise<Food> => {
+export const addfood = async (payload: AddFoodPayload, imageFile?: File | null): Promise<Food> => {
   const form = new FormData();
   form.append("name",    payload.name);
   form.append("price",   String(payload.price));

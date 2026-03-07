@@ -62,10 +62,10 @@ export default function Step4Review({
           <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-4">Daily Macro Targets</p>
           <div className="grid grid-cols-4 gap-2">
             {[
-              { label: "Protein",  value: `${fmtDec(macros.protein)}g`,      color: "#86efac" },
-              { label: "Carbs",    value: `${fmtDec(macros.carbohydrate)}g`, color: "#93c5fd" },
-              { label: "Fat",      value: `${fmtDec(macros.fat)}g`,          color: "#fca5a5" },
-              { label: "Sugar",    value: `${fmtDec(macros.sugar)}g`,        color: "#d8b4fe" },
+              { label: "Protein",  value: `${fmtDec(macros.protein)}g`,      color: "#D62400" },
+              { label: "Carbs",    value: `${fmtDec(macros.carbohydrate)}g`, color: "#ED7A18" },
+              { label: "Fat",      value: `${fmtDec(macros.fat)}g`,          color: "#218A3A" },
+              { label: "Sugar",    value: `${fmtDec(macros.sugar)}g`,        color: "#2239BD" },
             ].map(m => (
               <div key={m.label} className="macro-chip">
                 <span className="text-sm font-bold" style={{ color: m.color }}>{m.value}</span>

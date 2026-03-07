@@ -39,7 +39,7 @@ export default function Step2Settings({
               className="rounded-2xl border-2 p-4 text-left transition-all duration-200 cursor-pointer"
               style={{
                 borderColor: priority === p ? "#1c1917" : "#e7e5e4",
-                background:  priority === p ? "#1c1917" : "#fafaf9",
+                background:  priority === p ? "#1FFF1C7" : "#FFF1C7",
               }}>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-lg">{p === "budget" ? "💰" : "🥗"}</span>

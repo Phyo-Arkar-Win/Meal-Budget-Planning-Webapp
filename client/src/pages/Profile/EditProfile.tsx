@@ -19,7 +19,6 @@ const EditProfile = () => {
     fitness_goal: "Maintenance", activity_level: "Sedentary",
   });
 
-  // Password change state
   const [pwData, setPwData]       = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError]     = useState("");
@@ -115,77 +114,108 @@ const EditProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#FDF8F0" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-          <p className="text-stone-400 text-sm tracking-wide">Loading profile…</p>
+          <div className="w-8 h-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+          <p className="text-stone-400 text-sm tracking-wide font-sans">Loading profile…</p>
         </div>
       </div>
     );
   }
 
   const initial = formData.username?.charAt(0).toUpperCase() || "U";
-  const inputCls = "w-full px-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 focus:bg-white transition text-stone-800 text-sm";
-  const labelCls = "block text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-2";
+
+  // Shared class strings
+  const inputCls =
+    "w-full px-4 py-3 bg-[#FAF6EF] border border-stone-200 rounded-xl " +
+    "focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 focus:bg-white " +
+    "transition text-stone-800 text-sm font-sans";
+  const labelCls = "block text-[11px] font-semibold text-stone-400 uppercase tracking-widest mb-1.5 font-sans";
+  const cardCls  = "bg-white rounded-2xl border border-stone-100 shadow-sm p-6 md:p-8";
 
   return (
-    <div className="min-h-screen bg-stone-50 flex font-sans">
+    <div className="min-h-screen flex font-sans" style={{ backgroundColor: "#FDF8F0" }}>
 
-      {/* ── LEFT PANEL (PC only) ── */}
-      <div className="hidden md:flex flex-col w-1/3 max-w-sm bg-stone-900 text-white p-10 relative">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-        <Link to="/" className="text-stone-400 hover:text-white flex items-center gap-2 transition w-fit group">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {/* ── LEFT SIDEBAR ── */}
+      <div className="hidden md:flex flex-col w-64 flex-shrink-0 bg-[#1E1A14] text-white px-8 py-10">
+        <Link
+          to="/"
+          className="flex items-center gap-2 text-stone-500 hover:text-white transition text-sm font-sans w-fit group mb-auto"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          <span className="text-sm tracking-wide">Back to Dashboard</span>
+          Back to Dashboard
         </Link>
-        <div className="mt-32">
-          <h1 className="font-serif text-5xl text-amber-400 mb-6 leading-tight">Refine<br />Your Data</h1>
-          <p className="text-stone-400 leading-relaxed text-sm">
+
+        <div className="mt-12 mb-auto">
+          <h1
+            className="text-amber-400 leading-tight mb-4"
+            style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontSize: "2.4rem", lineHeight: 1.15 }}
+          >
+            Refine<br />Your Data
+          </h1>
+          <p className="text-stone-500 text-sm leading-relaxed font-sans font-light">
             Updating your body metrics and fitness goals ensures your daily calorie budget and macronutrient targets stay perfectly accurate.
           </p>
         </div>
+
+        <div className="mt-auto pt-8 border-t border-stone-800 flex flex-col gap-1">
+          <span className="text-amber-500 text-sm font-medium font-sans py-1.5">Profile & Metrics</span>
+          <span className="text-stone-600 text-sm font-sans py-1.5 hover:text-stone-300 cursor-pointer transition">Security</span>
+          <span className="text-stone-600 text-sm font-sans py-1.5 hover:text-stone-300 cursor-pointer transition">Notifications</span>
+        </div>
       </div>
 
-      {/* ── RIGHT PANEL ── */}
-      <div className="flex-1 flex flex-col items-center p-5 md:py-12 md:px-10 overflow-y-auto">
-        <div className="w-full max-w-xl flex flex-col gap-6">
+      {/* ── MAIN CONTENT ── */}
+      <div className="flex-1 overflow-y-auto px-5 py-8 md:px-12 md:py-12">
+        <div className="max-w-lg mx-auto flex flex-col gap-5">
 
           {/* Mobile back */}
           <div className="md:hidden">
-            <Link to="/" className="text-stone-500 hover:text-stone-900 flex items-center gap-2 transition w-fit">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <Link to="/" className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition text-sm font-medium w-fit">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span className="text-sm font-medium">Back</span>
+              Back
             </Link>
           </div>
 
           {/* ── PROFILE FORM ── */}
-          <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-6 md:p-10">
-            <h2 className="md:hidden font-serif text-3xl text-stone-900 mb-8 text-center">Edit Profile</h2>
+          <div className={cardCls}>
+            <div className="mb-6">
+              <h2 className="text-base font-semibold text-stone-800 font-sans">Profile & Body Metrics</h2>
+              <p className="text-xs text-stone-400 mt-0.5 font-sans">Your personal details and physical stats</p>
+            </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-              {error && <div className="bg-red-50 text-red-500 text-sm p-4 rounded-xl border border-red-100 text-center">{error}</div>}
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              {error && (
+                <div className="bg-red-50 text-red-500 text-sm p-3.5 rounded-xl border border-red-100 font-sans">
+                  {error}
+                </div>
+              )}
 
-              {/* Avatar */}
-              <div className="flex flex-col items-center mb-2">
-                <div
-                  className="relative w-28 h-28 rounded-full bg-stone-100 flex items-center justify-center text-4xl text-stone-900 font-bold shadow-md cursor-pointer group overflow-hidden border-4 border-white ring-2 ring-stone-100 hover:ring-amber-400 transition-all"
-                  onClick={() => fileInputRef.current?.click()}
-                >
+              {/* Avatar row */}
+              <div
+                className="flex items-center gap-4 pb-5 border-b border-stone-100 cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="relative w-14 h-14 rounded-full bg-emerald-900 flex items-center justify-center flex-shrink-0 overflow-hidden ring-2 ring-stone-100 hover:ring-amber-300 transition-all group">
                   {avatarPreview
                     ? <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                    : <span className="text-stone-400 group-hover:text-amber-500 transition-colors">{initial}</span>}
-                  <div className="absolute inset-0 bg-stone-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    : <span style={{ fontFamily: "'Georgia', serif", fontSize: "1.4rem", color: "#fff" }}>{initial}</span>
+                  }
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                 </div>
-                <p className="text-[10px] text-stone-400 mt-3 uppercase tracking-widest font-bold">Change Avatar</p>
+                <div>
+                  <p className="text-sm font-semibold text-stone-800 font-sans">{formData.username || "Your Name"}</p>
+                  <p className="text-xs text-amber-600 font-medium font-sans mt-0.5">Change avatar</p>
+                </div>
                 <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageChange} />
               </div>
 
@@ -193,16 +223,17 @@ const EditProfile = () => {
               <div>
                 <label className={labelCls}>Username</label>
                 <div className="relative">
-                  <input type="text" name="username" value={formData.username} onChange={handleChange} required className={inputCls + " pr-12"} />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl font-bold select-none">
+                  <input type="text" name="username" value={formData.username} onChange={handleChange} required className={inputCls + " pr-10"} />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-base select-none">
                     {formData.gender?.toLowerCase() === "female"
-                      ? <span className="text-pink-400">♀</span>
-                      : <span className="text-blue-400">♂</span>}
-                  </div>
+                      ? <span className="text-pink-500">♀</span>
+                      : <span className="text-blue-500">♂</span>}
+                  </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Age + Weight */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Age</label>
                   <input type="number" name="age" value={formData.age} onChange={handleChange} required className={inputCls} />
@@ -213,12 +244,14 @@ const EditProfile = () => {
                 </div>
               </div>
 
+              {/* Height */}
               <div>
                 <label className={labelCls}>Height (cm)</label>
                 <input type="number" name="height" value={formData.height} onChange={handleChange} required className={inputCls} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Goal + Activity */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Fitness Goal</label>
                   <select name="fitness_goal" value={formData.fitness_goal} onChange={handleChange} className={inputCls + " appearance-none"}>
@@ -239,43 +272,60 @@ const EditProfile = () => {
                 </div>
               </div>
 
-              <button type="submit" disabled={saving}
-                className="mt-2 w-full bg-stone-900 text-white py-4 rounded-xl font-semibold text-base hover:bg-amber-400 hover:text-stone-900 transition disabled:opacity-70 disabled:cursor-not-allowed shadow-md">
-                {saving ? "Saving & Recalculating..." : "Save Changes"}
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full bg-stone-900 text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-stone-800 transition disabled:opacity-60 disabled:cursor-not-allowed font-sans mt-1"
+              >
+                {saving ? "Saving & Recalculating…" : "Save Changes"}
               </button>
             </form>
           </div>
 
-          {/* ── CHANGE PASSWORD SECTION ── */}
-          <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-6 md:p-10">
-            <h3 className="font-serif text-2xl text-stone-900 mb-1">Change Password</h3>
-            <p className="text-stone-400 text-sm mb-6">Update your current login password.</p>
+          {/* ── CHANGE PASSWORD ── */}
+          <div className={cardCls}>
+            <div className="mb-5">
+              <h3 className="text-base font-semibold text-stone-800 font-sans">Change Password</h3>
+              <p className="text-xs text-stone-400 mt-0.5 font-sans">Update your current login password</p>
+            </div>
 
-            {pwError   && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl p-3">{pwError}</div>}
-            {pwSuccess && <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3">{pwSuccess}</div>}
+            {pwError   && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl p-3 font-sans">{pwError}</div>}
+            {pwSuccess && <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 font-sans">{pwSuccess}</div>}
 
             <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4">
               <div>
                 <label className={labelCls}>Current Password</label>
-                <input type="password" placeholder="••••••••" required value={pwData.currentPassword}
+                <input
+                  type="password" placeholder="••••••••" required
+                  value={pwData.currentPassword}
                   onChange={(e) => setPwData({ ...pwData, currentPassword: e.target.value })}
-                  className={inputCls} />
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>New Password</label>
-                <input type="password" placeholder="min. 6 characters" required value={pwData.newPassword}
+                <input
+                  type="password" placeholder="min. 6 characters" required
+                  value={pwData.newPassword}
                   onChange={(e) => setPwData({ ...pwData, newPassword: e.target.value })}
-                  className={inputCls} />
+                  className={inputCls}
+                />
               </div>
               <div>
                 <label className={labelCls}>Confirm New Password</label>
-                <input type="password" placeholder="••••••••" required value={pwData.confirmPassword}
+                <input
+                  type="password" placeholder="repeat new password" required
+                  value={pwData.confirmPassword}
                   onChange={(e) => setPwData({ ...pwData, confirmPassword: e.target.value })}
-                  className={inputCls} />
+                  className={inputCls}
+                />
               </div>
-              <button type="submit" disabled={pwLoading}
-                className="w-full bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 disabled:opacity-50 text-sm">
-                {pwLoading ? "Saving…" : "Change Password"}
+              <button
+                type="submit"
+                disabled={pwLoading}
+                className="w-full bg-stone-900 text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-stone-800 transition disabled:opacity-60 font-sans"
+              >
+                {pwLoading ? "Saving…" : "Update Password"}
               </button>
             </form>
           </div>

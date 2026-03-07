@@ -16,7 +16,7 @@ export interface Food {
   };
 }
 
-export interface CreateFoodPayload {
+export interface AddFoodPayload {
   name:     string;
   price:    number;
   canteen:  string;

@@ -34,6 +34,7 @@ const Login = () => {
 
   // ── Google login ──────────────────────────────────────────────────────────
   const handleGoogleLogin = useGoogleLogin({
+    flow: "implicit",
     onSuccess: async (tokenResponse) => {
       setGoogleLoading(true);
       setError(null);
@@ -134,7 +135,7 @@ const Login = () => {
         }
       `}</style>
 
-      <div className="auth-root min-h-screen bg-stone-50 flex items-center justify-center px-4 py-12">
+      <div className="auth-root min-h-screen flex items-center justify-center px-4 py-12" style={{ background: "#FDF8F0" }}>
         <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-2 fu">
 
           {/* ── Left branding panel ── */}

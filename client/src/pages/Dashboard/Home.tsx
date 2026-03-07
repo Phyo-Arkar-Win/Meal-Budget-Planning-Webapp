@@ -8,35 +8,19 @@ import type { Plan } from "../../types/plan";
 import type { TodayStatusResult } from "../../types/progress";
 import foodBg from "../../assets/food-bg.jpg";
 
-interface PlanStat {
-  savedDays:  number;
-  daysOver:   number;
-  compliance: number;
-}
+interface PlanStat { savedDays: number; daysOver: number; compliance: number; }
 
-// What's happening with today's tracking for this plan
 type TodayState =
-  | "plan-new"          // 0 saved days, no today record
-  | "not-started"       // has past days, but nothing opened today
-  | "tracking"          // opened today, some foods ticked
-  | "exercise-pending"  // completed day, choosing exercise
-  | "day-saved"         // today fully saved
-  | "plan-completed";   // plan.status === 'completed'
+  | "plan-new" | "not-started" | "tracking"
+  | "exercise-pending" | "day-saved" | "plan-completed";
 
-
-// Visual config per state
-const STATE_CONFIG: Record<TodayState, {
-  dot:   string;   // tailwind bg color for the dot
-  label: string;
-  badge: string;   // tailwind classes for the badge
-  icon:  string;
-}> = {
-  "plan-new":         { dot: "bg-stone-300",   label: "Not started",          badge: "bg-stone-100 text-stone-400",         icon: "○" },
-  "not-started":      { dot: "bg-amber-400",   label: "Not tracked today",    badge: "bg-amber-50 text-amber-600",          icon: "◔" },
-  "tracking":         { dot: "bg-blue-400",    label: "Tracking in progress", badge: "bg-blue-50 text-blue-600",            icon: "✎" },
-  "exercise-pending": { dot: "bg-orange-400",  label: "Choose exercise",      badge: "bg-orange-50 text-orange-600",        icon: "⚡" },
-  "day-saved":        { dot: "bg-emerald-400", label: "Today saved ✓",        badge: "bg-emerald-50 text-emerald-700",      icon: "✓" },
-  "plan-completed":   { dot: "bg-blue-500",    label: "Plan completed 🏆",    badge: "bg-blue-50 text-blue-700",            icon: "🏆" },
+const STATE_CONFIG: Record<TodayState, { dot: string; label: string; color: string; icon: string }> = {
+  "plan-new":         { dot: "#B0A090", label: "Not started",          color: "#8A7B6E", icon: "○" },
+  "not-started":      { dot: "#E8A020", label: "Not tracked today",    color: "#B07010", icon: "◔" },
+  "tracking":         { dot: "#5B8FE8", label: "Tracking in progress", color: "#2B5FC0", icon: "✎" },
+  "exercise-pending": { dot: "#E87B5B", label: "Choose exercise",      color: "#C04820", icon: "⚡" },
+  "day-saved":        { dot: "#4CAF82", label: "Today saved ✓",        color: "#2A7A52", icon: "✓" },
+  "plan-completed":   { dot: "#E8A020", label: "Plan completed 🏆",    color: "#B07010", icon: "🏆" },
 };
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -49,12 +33,10 @@ export default function Home() {
   const [loading,     setLoading]     = useState(true);
   const navigate = useNavigate();
 
-  // Delete modal
   const [deleteTarget,     setDeleteTarget]     = useState<Plan | null>(null);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [deleteError,      setDeleteError]      = useState("");
 
-  // Extend modal
   const [extendTarget,  setExtendTarget]  = useState<Plan | null>(null);
   const [extendDays,    setExtendDays]    = useState("7");
   const [extendLoading, setExtendLoading] = useState(false);
@@ -63,62 +45,36 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/login"); return; }
-
     (async () => {
       try {
-        const [userData, plansData] = await Promise.all([
-          fetchUserProfile(token),
-          fetchPlans(),
-        ]);
+        const [userData, plansData] = await Promise.all([fetchUserProfile(token), fetchPlans()]);
         setUser(userData);
         setPlans(plansData);
-
-        // Fetch stats AND today-status for every plan in parallel
         const [statsResults, todayResults] = await Promise.all([
           Promise.allSettled(plansData.map((p: Plan) => getPlanStats(p._id))),
           Promise.allSettled(plansData.map((p: Plan) => getTodayStatus(p._id))),
         ]);
-
-        // Build stats map
         const statsMap: Record<string, PlanStat> = {};
         statsResults.forEach((result, i) => {
           if (result.status === "fulfilled") {
-            const data       = result.value.data ?? [];
-            const savedDays  = data.length;
-            const daysOver   = data.filter((d: any) => d.calories_exceeded > 0).length;
-            const compliance = savedDays > 0
-              ? Math.round(((savedDays - daysOver) / savedDays) * 100) : 0;
+            const data = result.value.data ?? [];
+            const savedDays = data.length;
+            const daysOver = data.filter((d: any) => d.calories_exceeded > 0).length;
+            const compliance = savedDays > 0 ? Math.round(((savedDays - daysOver) / savedDays) * 100) : 0;
             statsMap[plansData[i]._id] = { savedDays, daysOver, compliance };
           }
         });
         setPlanStats(statsMap);
-
-        // Build today-state map
         const stateMap: Record<string, TodayState> = {};
         todayResults.forEach((result, i) => {
           const plan = plansData[i] as Plan;
-
-          if (plan.status === "completed") {
-            stateMap[plan._id] = "plan-completed";
-            return;
-          }
-
+          if (plan.status === "completed") { stateMap[plan._id] = "plan-completed"; return; }
           const savedDays = statsMap[plan._id]?.savedDays ?? 0;
-
           if (result.status === "rejected" || result.value === undefined) {
-            stateMap[plan._id] = savedDays === 0 ? "plan-new" : "not-started";
-            return;
+            stateMap[plan._id] = savedDays === 0 ? "plan-new" : "not-started"; return;
           }
-
           const todayStatus = result.value as TodayStatusResult;
-
-          if (!todayStatus.exists) {
-            // No record today — new plan or just hasn't opened today yet
-            stateMap[plan._id] = savedDays === 0 ? "plan-new" : "not-started";
-            return;
-          }
-
-          // Record exists — map its status
+          if (!todayStatus.exists) { stateMap[plan._id] = savedDays === 0 ? "plan-new" : "not-started"; return; }
           if (todayStatus.status === "tracking") {
             stateMap[plan._id] = todayStatus.eaten_count > 0 ? "tracking" : "not-started";
           } else if (todayStatus.status === "recommendation") {
@@ -128,7 +84,6 @@ export default function Home() {
           }
         });
         setTodayStates(stateMap);
-
       } catch {
         localStorage.removeItem("token");
         navigate("/login");
@@ -142,8 +97,7 @@ export default function Home() {
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
-    setDeleteConfirming(true);
-    setDeleteError("");
+    setDeleteConfirming(true); setDeleteError("");
     try {
       await deletePlan(deleteTarget._id);
       setPlans(prev => prev.filter(p => p._id !== deleteTarget._id));
@@ -156,21 +110,19 @@ export default function Home() {
     if (!extendTarget) return;
     const days = parseInt(extendDays);
     if (!days || days < 1) { setExtendError("Enter at least 1 day."); return; }
-    setExtendLoading(true);
-    setExtendError("");
+    setExtendLoading(true); setExtendError("");
     try {
       const updated = await extendPlan(extendTarget._id, days);
       setPlans(prev => prev.map(p => p._id === updated._id ? updated : p));
       setTodayStates(prev => ({ ...prev, [updated._id]: "not-started" }));
-      setExtendTarget(null);
-      setExtendDays("7");
+      setExtendTarget(null); setExtendDays("7");
     } catch (e: any) { setExtendError(e.message || "Failed to extend."); }
     finally { setExtendLoading(false); }
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50">
-      <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F5F0E8" }}>
+      <div style={{ width: 32, height: 32, border: "3px solid #E8A020", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
     </div>
   );
 
@@ -180,38 +132,41 @@ export default function Home() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
-        .home-root * { box-sizing:border-box; }
-        .home-root { font-family:'DM Sans',sans-serif; }
-        .serif { font-family:'DM Serif Display',serif; }
-        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        .fu{animation:fadeUp 0.45s ease both}
-        .d1{animation-delay:.07s} .d2{animation-delay:.14s} .d3{animation-delay:.21s} .d4{animation-delay:.28s}
+        @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        .fu  { animation: fadeUp 0.4s ease both; }
+        .d1  { animation-delay: .07s; } .d2 { animation-delay: .14s; }
+        .d3  { animation-delay: .21s; } .d4 { animation-delay: .28s; }
+        .plan-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .plan-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.08) !important; }
+        .nav-link { transition: color 0.18s, background 0.18s; }
+        .nav-link:hover { color: #fff !important; background: rgba(255,255,255,0.07) !important; }
+        .back-link-hover:hover { color: #E8A020 !important; }
+        a { text-decoration: none; }
       `}</style>
 
       {/* ── Delete modal ── */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-6">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-            <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div style={modal.overlay}>
+          <div style={modal.box}>
+            <div style={{ width: 52, height: 52, background: "#FEE2E2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
+              <svg width="22" height="22" fill="none" stroke="#EF4444" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="serif text-xl font-bold text-stone-900 text-center mb-2">Delete Plan?</h3>
-            <p className="text-stone-500 text-center text-sm mb-2">
-              Delete <span className="font-bold text-stone-900">"{deleteTarget.name}"</span>?
+            <h3 style={{ fontFamily: "'Lora', serif", fontSize: 22, fontWeight: 700, color: "#1A1612", textAlign: "center", marginBottom: 8 }}>Delete Plan?</h3>
+            <p style={{ color: "#8A7B6E", textAlign: "center", fontSize: 14, marginBottom: 4 }}>
+              Delete <strong style={{ color: "#1A1612" }}>"{deleteTarget.name}"</strong>?
             </p>
-            <p className="text-red-400 text-center text-xs mb-5">All tracking data will be permanently removed.</p>
-            {deleteError && <p className="text-red-500 text-xs text-center mb-3">{deleteError}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => { setDeleteTarget(null); setDeleteError(""); }} disabled={deleteConfirming}
-                className="flex-1 py-3 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 transition disabled:opacity-50">
-                Cancel
-              </button>
-              <button onClick={handleDeleteConfirm} disabled={deleteConfirming}
-                className="flex-1 py-3 rounded-xl font-bold text-sm text-white bg-red-500 hover:bg-red-600 transition disabled:opacity-50 flex items-center justify-center gap-2">
-                {deleteConfirming ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : "Delete"}
+            <p style={{ color: "#F87171", textAlign: "center", fontSize: 13, marginBottom: 20 }}>All tracking data will be permanently removed.</p>
+            {deleteError && <p style={{ color: "#EF4444", fontSize: 13, textAlign: "center", marginBottom: 12 }}>{deleteError}</p>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { setDeleteTarget(null); setDeleteError(""); }} disabled={deleteConfirming} style={modal.cancelBtn}>Cancel</button>
+              <button onClick={handleDeleteConfirm} disabled={deleteConfirming} style={modal.deleteBtn}>
+                {deleteConfirming ? <div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> : "Delete"}
               </button>
             </div>
           </div>
@@ -220,299 +175,275 @@ export default function Home() {
 
       {/* ── Extend modal ── */}
       {extendTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-6">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4 mx-auto text-2xl">🏆</div>
-            <h3 className="serif text-xl font-bold text-stone-900 text-center mb-1">Plan Completed!</h3>
-            <p className="text-stone-500 text-center text-sm mb-6">
-              <span className="font-semibold text-stone-800">{extendTarget.name}</span> is finished. Keep going?
+        <div style={modal.overlay}>
+          <div style={modal.box}>
+            <div style={{ fontSize: 36, textAlign: "center", marginBottom: 14 }}>🏆</div>
+            <h3 style={{ fontFamily: "'Lora', serif", fontSize: 22, fontWeight: 700, color: "#1A1612", textAlign: "center", marginBottom: 6 }}>Plan Completed!</h3>
+            <p style={{ color: "#8A7B6E", textAlign: "center", fontSize: 14, marginBottom: 22 }}>
+              <strong style={{ color: "#1A1612" }}>{extendTarget.name}</strong> is finished. Keep going?
             </p>
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 mb-3">
-              <p className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Extend the plan</p>
-              <div className="flex gap-2 items-center">
+            <div style={{ background: "#FAF7F2", border: "1px solid #EDE5D8", borderRadius: 14, padding: "18px 16px", marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#A89880", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Extend the plan</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <input type="number" min="1" max="365" value={extendDays}
                   onChange={e => { setExtendDays(e.target.value); setExtendError(""); }}
-                  className="w-20 bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm text-center font-bold focus:outline-none focus:border-amber-400 transition" />
-                <span className="text-sm text-stone-500">more days</span>
+                  style={{ width: 72, border: "1.5px solid #EDE5D8", borderRadius: 10, padding: "8px 10px", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none", background: "#fff" }} />
+                <span style={{ fontSize: 13, color: "#8A7B6E" }}>more days</span>
                 <button onClick={handleExtendConfirm} disabled={extendLoading}
-                  className="ml-auto bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50">
-                  {extendLoading ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : "Extend →"}
+                  style={{ marginLeft: "auto", background: "#1A1612", color: "#E8A020", border: "none", borderRadius: 10, padding: "10px 18px", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {extendLoading ? "…" : "Extend →"}
                 </button>
               </div>
-              {extendError && <p className="text-red-500 text-xs mt-2">{extendError}</p>}
+              {extendError && <p style={{ color: "#EF4444", fontSize: 12, marginTop: 8 }}>{extendError}</p>}
             </div>
-            <button onClick={() => setExtendTarget(null)}
-              className="w-full py-3 rounded-2xl border-2 border-stone-200 font-bold text-sm text-stone-500 hover:border-stone-300 transition">
+            <button onClick={() => setExtendTarget(null)} style={{ width: "100%", padding: "12px", border: "1.5px solid #EDE5D8", borderRadius: 12, fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: "#6B5E52", background: "none", cursor: "pointer", marginBottom: 10 }}>
               No thanks, I'm done
             </button>
             <Link to={`/plans/${extendTarget._id}/stats`} onClick={() => setExtendTarget(null)}
-              className="block text-center text-xs text-amber-600 hover:text-amber-700 mt-3 font-semibold">
+              style={{ display: "block", textAlign: "center", fontSize: 13, color: "#E8A020", fontWeight: 600 }}>
               View plan statistics →
             </Link>
           </div>
         </div>
       )}
 
-      <div className="home-root min-h-screen bg-stone-50 flex">
+      {/* ── Root ── */}
+      <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#F5F0E8" }}>
 
-        {/* ── SIDEBAR ── */}
-        <aside className="hidden md:flex flex-col w-72 shrink-0 bg-stone-900 text-white sticky top-0 h-screen px-8 py-10">
-          <div className="mb-10 fu">
-            <div className="flex items-center gap-2 mb-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        {/* ══ SIDEBAR ══ */}
+        <aside style={sb.root}>
+          <div style={sb.glow} />
+
+          {/* Logo */}
+          <div style={{ marginBottom: 32, position: "relative", zIndex: 1 }} className="fu">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <svg width="18" height="18" fill="none" stroke="#E8A020" strokeWidth="1.8" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
               </svg>
-              <span className="serif text-lg text-amber-400 tracking-wide">MealBudget</span>
+              <span style={{ fontFamily: "'Lora', serif", fontSize: 20, color: "#E8A020", fontWeight: 700, letterSpacing: "0.02em" }}>MealBudget</span>
             </div>
-            <p className="text-stone-500 text-[10px] tracking-widest uppercase">Planning App</p>
+            <p style={{ fontSize: 10, color: "#4A3D32", letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600 }}>Planning App</p>
           </div>
 
-          <div className="flex flex-col items-center text-center mb-8 fu d1">
-            <div className="w-20 h-20 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-3xl font-bold shadow-lg mb-3 select-none overflow-hidden">
-              {user?.profile_picture ? <img src={user.profile_picture} alt="" className="w-full h-full object-cover" /> : initial}
+          {/* Avatar */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28, position: "relative", zIndex: 1 }} className="fu d1">
+            <div style={{ width: 76, height: 76, borderRadius: "50%", background: "#E8A020", display: "flex", alignItems: "center", justifyContent: "center", color: "#1A1612", fontSize: 28, fontWeight: 700, marginBottom: 14, overflow: "hidden", boxShadow: "0 4px 20px rgba(232,160,32,0.35)", border: "3px solid rgba(232,160,32,0.3)", flexShrink: 0 }}>
+              {user?.profile_picture ? <img src={user.profile_picture} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
             </div>
-            <p className="serif text-xl text-white leading-tight">{user?.username || "User"}</p>
-            <p className="text-stone-500 text-xs mt-0.5 truncate w-full text-center">{user?.email || ""}</p>
-            <Link to="/profile" className="mt-2 text-xs text-stone-400 hover:text-amber-400 transition">Edit Profile ✎</Link>
-            <button onClick={handleLogout} className="mt-3 flex items-center gap-1.5 text-xs text-stone-500 hover:text-red-400 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <p style={{ fontFamily: "'Lora', serif", fontSize: 22, color: "#FFFFFF", fontWeight: 600, lineHeight: 1.2, marginBottom: 4 }}>{user?.username || "User"}</p>
+            <p style={{ fontSize: 12, color: "#5A4D42", marginBottom: 10, wordBreak: "break-all" }}>{user?.email || ""}</p>
+            <Link to="/profile" className="back-link-hover" style={{ fontSize: 12, color: "#7A6A5E", fontWeight: 500 }}>Edit Profile ✎</Link>
+            <button onClick={handleLogout} style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#5A4D42", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
               </svg>
               Logout
             </button>
           </div>
 
-          <div className="border-t border-stone-800 mb-6" />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }} />
 
-          <div className="flex flex-col mb-8 fu d2">
+          {/* Stats */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 24, position: "relative", zIndex: 1 }} className="fu d2">
             {[
               { label: "Sex",      value: user?.gender         || "—" },
-              { label: "Weight",   value: user?.weight         ? `${user.weight} kg` : "—" },
-              { label: "Height",   value: user?.height         ? `${user.height} cm` : "—" },
+              { label: "Weight",   value: user?.weight         ? `${user.weight} Kg` : "—" },
+              { label: "Height",   value: user?.height         ? `${user.height} Cm` : "—" },
               { label: "Goal",     value: user?.fitness_goal   || "Not set" },
               { label: "Activity", value: user?.activity_level || "Not set" },
             ].map(item => (
-              <div key={item.label} className="flex justify-between items-center py-2.5 border-b border-stone-800 last:border-0">
-                <span className="text-[10px] text-stone-500 uppercase tracking-widest">{item.label}</span>
-                <span className="text-sm text-stone-200 font-medium capitalize text-right" style={{ maxWidth: 130 }}>{item.value}</span>
+              <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <span style={{ fontSize: 10, color: "#4A3D32", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>{item.label}</span>
+                <span style={{ fontSize: 14, color: "#D0C4B4", fontWeight: 600, textAlign: "right", maxWidth: 140, textTransform: "capitalize" }}>{item.value}</span>
               </div>
             ))}
           </div>
 
-          <nav className="flex flex-col gap-1 mt-auto fu d3">
-            <Link to="/food" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
-              </svg>
-              Food Database
-            </Link>
-            <Link to="/plans/create" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Create Plan
-            </Link>
+          {/* Nav */}
+          <nav style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: "auto", position: "relative", zIndex: 1 }} className="fu d3">
+            {[
+              { to: "/food",          icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" /></svg>, label: "Food Database" },
+              { to: "/plans/create",  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,                                                                                                                        label: "Create Plan" },
+            ].map(({ to, icon, label }) => (
+              <Link key={to} to={to} className="nav-link" style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 12, color: "#5A4D42", fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
+                {icon}{label}
+              </Link>
+            ))}
           </nav>
         </aside>
 
-        {/* ── MAIN ── */}
-        <main className="flex-1 flex flex-col min-w-0">
+        {/* ══ MAIN ══ */}
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
 
-          <div className="md:hidden bg-stone-900 px-5 pt-10 pb-5">
-            <div className="flex items-center justify-between fu">
-              <Link to="/food" className="flex flex-col items-center gap-1 text-stone-400 hover:text-amber-400 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
-                </svg>
-                <span className="text-[8px] uppercase tracking-wide text-center leading-tight" style={{ maxWidth: 52 }}>Food<br/>Database</span>
-              </Link>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="serif text-white text-lg leading-tight">{user?.username || "User"}</p>
-                  <Link to="/profile" className="text-[11px] text-stone-400 hover:text-amber-400 transition">Edit Profile ✎</Link>
-                </div>
-                <div className="w-11 h-11 rounded-full bg-amber-400 flex items-center justify-center text-stone-900 text-lg font-bold shadow shrink-0 select-none overflow-hidden">
-                  {user?.profile_picture ? <img src={user.profile_picture} alt="" className="w-full h-full object-cover" /> : initial}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end mt-2">
-              <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-red-400 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
-                </svg>
-                Logout
-              </button>
+          {/* Mobile header */}
+          <div style={{ background: "#1A1612", padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Link to="/food" style={{ color: "#5A4D42", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v7a4 4 0 004 4h0a4 4 0 004-4V3M7 14v7M17 3a4 4 0 010 8v9" />
+              </svg>
+              Food DB
+            </Link>
+            <span style={{ fontFamily: "'Lora', serif", fontSize: 18, color: "#E8A020", fontWeight: 700 }}>MealBudget</span>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#E8A020", display: "flex", alignItems: "center", justifyContent: "center", color: "#1A1612", fontSize: 16, fontWeight: 700, overflow: "hidden" }}>
+              {user?.profile_picture ? <img src={user.profile_picture} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
             </div>
           </div>
 
-          <div className="flex-1 flex justify-center py-8 px-5 md:py-10 md:px-10">
-            <div className="w-full max-w-xl flex flex-col gap-7">
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: "36px 24px 48px" }}>
+            <div style={{ width: "100%", maxWidth: 600, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              <div className="hidden md:block fu">
-                <p className="text-stone-400 text-sm tracking-wide">Welcome back,</p>
-                <h1 className="serif text-4xl text-stone-900 mt-0.5">{user?.username || "User"}</h1>
+              {/* Welcome */}
+              <div className="fu" style={{ display: "none" }}>
+                <p style={{ fontSize: 14, color: "#A89880", fontWeight: 500, letterSpacing: "0.03em", marginBottom: 4 }}>Welcome back,</p>
+                <h1 style={{ fontFamily: "'Lora', serif", fontSize: 44, color: "#1A1612", lineHeight: 1.1, fontWeight: 700 }}>{user?.username || "User"}</h1>
+              </div>
+              {/* Desktop welcome — visible md+ */}
+              <div className="fu" style={{ paddingTop: 4 }}>
+                <p style={{ fontSize: 14, color: "#A89880", fontWeight: 500, letterSpacing: "0.03em", marginBottom: 4 }}>Welcome back,</p>
+                <h1 style={{ fontFamily: "'Lora', serif", fontSize: 44, color: "#1A1612", lineHeight: 1.1, fontWeight: 700 }}>{user?.username || "User"}</h1>
               </div>
 
-              {/* Macro card */}
-              <div className="relative rounded-2xl overflow-hidden shadow-xl fu d2" style={{ minHeight: 230 }}>
-                <img src={foodBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,rgba(10,10,10,.78) 0%,rgba(10,10,10,.48) 100%)" }} />
-                <div className="relative p-6 md:p-8 text-white">
-                  <h2 className="serif text-xl md:text-2xl mb-5 tracking-wide">Macronutrient</h2>
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-4">
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Fitness Goal</p>
-                        <p className="text-sm font-semibold capitalize leading-tight">{user?.fitness_goal || "Not set"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Activity Level</p>
-                        <p className="text-sm font-semibold capitalize leading-tight">{user?.activity_level || "Not set"}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-4 text-center">
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Protein</p>
-                        <p className="text-sm font-semibold">{macros?.protein ?? "—"} <span className="text-xs text-white/55">g</span></p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Carbohydrate</p>
-                        <p className="text-sm font-semibold">{macros?.carbohydrate ?? "—"} <span className="text-xs text-white/55">g</span></p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-4 text-center">
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Sugar</p>
-                        <p className="text-sm font-semibold">{macros?.sugar ?? "—"} <span className="text-xs text-white/55">g</span></p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-0.5">Fat</p>
-                        <p className="text-sm font-semibold">{macros?.fat ?? "—"} <span className="text-xs text-white/55">g</span></p>
-                      </div>
+              {/* ── Macro card ── */}
+              <div className="fu d2" style={{ position: "relative", borderRadius: 24, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+                <img src={foodBg} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(10,8,6,.88) 0%,rgba(10,8,6,.55) 100%)" }} />
+
+                <div style={{ position: "relative", padding: "28px 28px 24px" }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+                    <h2 style={{ fontFamily: "'Lora', serif", fontSize: 26, color: "#FFFFFF", fontWeight: 700, lineHeight: 1.2 }}>Macronutrient</h2>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Daily Calories</p>
+                      <p style={{ fontFamily: "'Lora', serif", fontSize: 30, color: "#E8A020", lineHeight: 1, fontWeight: 700 }}>
+                        {macros?.daily_cal ? fmt(macros.daily_cal) : "—"}
+                        <span style={{ fontSize: 13, fontFamily: "'DM Sans', sans-serif", fontWeight: 400, color: "rgba(255,255,255,0.45)", marginLeft: 6 }}>kcal</span>
+                      </p>
                     </div>
                   </div>
-                  <div className="mt-5 pt-4 border-t border-white/20 text-center">
-                    <p className="text-[9px] text-white/55 uppercase tracking-widest font-medium mb-1">Daily Calories</p>
-                    <p className="serif text-3xl text-amber-400">
-                      {macros?.daily_cal ? fmt(macros.daily_cal) : "—"}
-                      <span className="text-sm font-sans font-normal text-white/55 ml-2">kcal</span>
-                    </p>
+
+                  {/* Goals row */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+                    {[
+                      { label: "Fitness Goal",   value: user?.fitness_goal   || "—" },
+                      { label: "Activity Level", value: user?.activity_level || "—" },
+                    ].map(item => (
+                      <div key={item.label} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 14px" }}>
+                        <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 3 }}>{item.label}</p>
+                        <p style={{ fontSize: 13, color: "#FFFFFF", fontWeight: 600, textTransform: "capitalize" }}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Macro pills */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                    {[
+                      { key: "protein",      label: "Protein",      value: macros?.protein,      color: "#5B8FE8" },
+                      { key: "carbohydrate", label: "Carbs",        value: macros?.carbohydrate, color: "#E8A020" },
+                      { key: "fat",          label: "Fat",          value: macros?.fat,          color: "#E87B5B" },
+                      { key: "sugar",        label: "Sugar",        value: macros?.sugar,        color: "#B87BDC" },
+                    ].map(m => (
+                      <div key={m.key} style={{ background: "rgba(255,255,255,0.07)", border: `1px solid ${m.color}40`, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
+                        <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 6 }}>{m.label}</p>
+                        <p style={{ fontFamily: "'Lora', serif", fontSize: 22, color: m.color, fontWeight: 700, lineHeight: 1 }}>
+                          {m.value ?? "—"}<span style={{ fontSize: 11, fontFamily: "'DM Sans', sans-serif", fontWeight: 400, color: "rgba(255,255,255,0.4)", marginLeft: 2 }}>g</span>
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              {/* Mobile stats */}
-              <div className="grid grid-cols-2 gap-3 md:hidden fu d3">
-                {[
-                  { label: "Weight", value: user?.weight ? `${user.weight} kg` : "—" },
-                  { label: "Height", value: user?.height ? `${user.height} cm` : "—" },
-                ].map(s => (
-                  <div key={s.label} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm text-center">
-                    <p className="text-[9px] text-stone-400 uppercase tracking-widest font-medium mb-1">{s.label}</p>
-                    <p className="serif text-2xl text-stone-800">{s.value}</p>
-                  </div>
-                ))}
               </div>
 
               {/* ── Your Plans ── */}
               <div className="fu d4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="serif text-2xl md:text-3xl text-stone-900">Your Plans</h2>
-                  <Link to="/plans/create"
-                    className="w-9 h-9 rounded-full bg-stone-900 text-white flex items-center justify-center text-2xl font-light hover:bg-amber-400 hover:text-stone-900 transition shadow">
-                    +
-                  </Link>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                  <h2 style={{ fontFamily: "'Lora', serif", fontSize: 32, color: "#1A1612", fontWeight: 700 }}>Your Plans</h2>
+                  <Link to="/plans/create" style={{ width: 40, height: 40, borderRadius: "50%", background: "#1A1612", color: "#E8A020", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 300, boxShadow: "0 2px 12px rgba(0,0,0,0.15)", textDecoration: "none", lineHeight: 1 }}>+</Link>
                 </div>
 
                 {plans.length > 0 ? (
-                  <div className="flex flex-col gap-3">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {plans.map(plan => {
-                      const stat        = planStats[plan._id];
-                      const todayState  = todayStates[plan._id];
+                      const stat       = planStats[plan._id];
+                      const todayState = todayStates[plan._id];
                       const isCompleted = plan.status === "completed";
-                      const cfg         = todayState ? STATE_CONFIG[todayState] : null;
+                      const cfg        = todayState ? STATE_CONFIG[todayState] : null;
 
                       return (
-                        <div key={plan._id}
-                          className={`border rounded-2xl shadow-sm transition-all duration-300 ${
-                            isCompleted
-                              ? "bg-stone-50 border-stone-200 opacity-70"
-                              : "bg-white border-stone-100 hover:shadow-md"
-                          }`}>
-
+                        <div key={plan._id} className="plan-card" style={{
+                          background: isCompleted ? "#FAF7F2" : "#FFFFFF",
+                          border: `1px solid ${isCompleted ? "#EDE5D8" : "#E8E0D4"}`,
+                          borderRadius: 20,
+                          boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+                          opacity: isCompleted ? 0.8 : 1,
+                          overflow: "hidden",
+                        }}>
                           {isCompleted && (
-                            <div className="px-5 pt-4 pb-2 flex items-center gap-2 border-b border-stone-100">
-                              <span className="text-base">🏆</span>
-                              <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">Plan completed</span>
+                            <div style={{ padding: "10px 20px", borderBottom: "1px solid #EDE5D8", display: "flex", alignItems: "center", gap: 8, background: "#F5F0E8" }}>
+                              <span style={{ fontSize: 14 }}>🏆</span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#A89880", textTransform: "uppercase", letterSpacing: "0.1em" }}>Plan completed</span>
                             </div>
                           )}
 
-                          <div className="p-5">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1">
+                          <div style={{ padding: "18px 20px" }}>
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
 
-                                {/* Plan name + priority badge */}
-                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                                  <p className={`font-semibold ${isCompleted ? "text-stone-400" : "text-stone-800"}`}>
-                                    {plan.name}
-                                  </p>
-                                  <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
-                                    plan.priority === "budget" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
-                                  }`}>{plan.priority}</span>
+                                {/* Name + priority */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                                  <p style={{ fontFamily: "'Lora', serif", fontSize: 17, fontWeight: 600, color: isCompleted ? "#A89880" : "#1A1612" }}>{plan.name}</p>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+                                    padding: "3px 9px", borderRadius: 100,
+                                    background: plan.priority === "budget" ? "#FDF3DC" : "#DCFCE7",
+                                    color: plan.priority === "budget" ? "#B07010" : "#166534",
+                                    border: `1px solid ${plan.priority === "budget" ? "#E8C87A" : "#86EFAC"}`,
+                                  }}>{plan.priority}</span>
                                 </div>
 
-                                {/* Today state badge */}
+                                {/* State badge */}
                                 {cfg && (
-                                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold mb-2 ${cfg.badge}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                                    {cfg.label}
+                                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 100, background: cfg.dot + "18", border: `1px solid ${cfg.dot}40`, marginBottom: 10 }}>
+                                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.dot, display: "inline-block", flexShrink: 0 }} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
                                   </div>
                                 )}
 
-                                {/* Sub-info */}
-                                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-400">
-                                  <span className="capitalize">{plan.fitness_goal}</span>
-                                  <span>·</span>
+                                {/* Sub info */}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", fontSize: 13, color: "#8A7B6E", fontWeight: 400 }}>
+                                  <span style={{ textTransform: "capitalize" }}>{plan.fitness_goal}</span>
+                                  <span style={{ color: "#C8BFB2" }}>·</span>
                                   <span>{plan.duration} days</span>
                                   {plan.priority === "budget" && plan.budget_limit && (
-                                    <><span>·</span><span>฿{plan.budget_limit}/day</span></>
+                                    <><span style={{ color: "#C8BFB2" }}>·</span><span>฿{plan.budget_limit}/day</span></>
                                   )}
                                 </div>
                               </div>
 
-                              {/* Action buttons */}
-                              <div className="flex items-center gap-2 shrink-0">
+                              {/* Actions */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                                 {isCompleted ? (
-                                  <Link to={`/plans/${plan._id}/stats`}
-                                    className="bg-stone-100 hover:bg-stone-200 text-stone-500 text-xs font-semibold px-3 py-2 rounded-full transition">
-                                    Stats
-                                  </Link>
+                                  <Link to={`/plans/${plan._id}/stats`} style={{ background: "#F5F0E8", color: "#6B5E52", fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 100, border: "1px solid #EDE5D8" }}>Stats</Link>
                                 ) : (
                                   <Link
-                                    to={
-                                      todayState === "exercise-pending"
-                                        ? `/plans/${plan._id}/today`   // goes to DailyTrack which shows Exercise button
-                                        : todayState === "day-saved"
-                                        ? `/plans/${plan._id}/track`
-                                        : `/plans/${plan._id}/track`
-                                    }
-                                    className={`text-xs font-semibold px-4 py-2 rounded-full transition ${
-                                      todayState === "exercise-pending"
-                                        ? "bg-orange-500 hover:bg-orange-600 text-white"
-                                        : todayState === "day-saved"
-                                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                        : "bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white"
-                                    }`}>
+                                    to={todayState === "exercise-pending" ? `/plans/${plan._id}/today` : `/plans/${plan._id}/track`}
+                                    style={{
+                                      fontSize: 13, fontWeight: 700, padding: "9px 18px", borderRadius: 100,
+                                      background: todayState === "exercise-pending" ? "#E87B5B"
+                                               : todayState === "day-saved"         ? "#4CAF82"
+                                               : "#1A1612",
+                                      color: "#FFFFFF",
+                                      boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+                                    }}>
                                     {todayState === "exercise-pending" ? "Exercise →"
-                                      : todayState === "day-saved"     ? "Done ✓"
-                                      : todayState === "tracking"      ? "Continue"
+                                      : todayState === "day-saved"    ? "Done ✓"
+                                      : todayState === "tracking"     ? "Continue"
                                       : "Track"}
                                   </Link>
                                 )}
-                                <button onClick={() => setDeleteTarget(plan)}
-                                  className="w-8 h-8 rounded-full bg-stone-100 hover:bg-red-100 text-stone-400 hover:text-red-500 flex items-center justify-center transition">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <button onClick={() => setDeleteTarget(plan)} style={{ width: 36, height: 36, borderRadius: "50%", background: "#FAF7F2", border: "1px solid #EDE5D8", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#B0A090", transition: "all 0.15s" }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FEE2E2"; (e.currentTarget as HTMLButtonElement).style.color = "#EF4444"; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#FAF7F2"; (e.currentTarget as HTMLButtonElement).style.color = "#B0A090"; }}>
+                                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                 </button>
@@ -520,38 +451,39 @@ export default function Home() {
                             </div>
 
                             {/* Stats row */}
-                            {stat ? (
-                              <div className="mt-3 pt-3 border-t border-stone-50 flex items-center gap-3 flex-wrap">
-                                <span className="text-[10px] text-stone-400">
-                                  <span className="font-semibold text-stone-600">{stat.savedDays}</span>/{plan.duration} days saved
-                                </span>
-                                <span className="text-stone-200">·</span>
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                                  stat.compliance >= 70 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
-                                }`}>
-                                  {stat.savedDays === 0 ? "No data yet" : `${stat.compliance}% compliant`}
-                                </span>
-                                {stat.daysOver > 0 && (
-                                  <><span className="text-stone-200">·</span>
-                                  <span className="text-[10px] text-red-400 font-medium">{stat.daysOver} over</span></>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="mt-3 pt-3 border-t border-stone-50">
-                                <span className="text-[10px] text-stone-300">No tracking data yet</span>
-                              </div>
-                            )}
+                            <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F0EBE2", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              {stat ? (
+                                <>
+                                  <span style={{ fontSize: 13, color: "#8A7B6E" }}>
+                                    <strong style={{ color: "#1A1612" }}>{stat.savedDays}</strong>/{plan.duration} days saved
+                                  </span>
+                                  <span style={{ color: "#C8BFB2" }}>·</span>
+                                  <span style={{
+                                    fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+                                    background: stat.compliance >= 70 ? "#DCFCE7" : "#FEE2E2",
+                                    color:      stat.compliance >= 70 ? "#166534" : "#DC2626",
+                                  }}>
+                                    {stat.savedDays === 0 ? "No data yet" : `${stat.compliance}% compliant`}
+                                  </span>
+                                  {stat.daysOver > 0 && (
+                                    <><span style={{ color: "#C8BFB2" }}>·</span>
+                                    <span style={{ fontSize: 13, color: "#E87B5B", fontWeight: 600 }}>{stat.daysOver} over</span></>
+                                  )}
+                                </>
+                              ) : (
+                                <span style={{ fontSize: 13, color: "#B0A090" }}>No tracking data yet</span>
+                              )}
+                            </div>
 
-                            {/* Completed plan CTA */}
+                            {/* Completed CTA */}
                             {isCompleted && (
-                              <div className="mt-4 pt-4 border-t border-stone-100 flex gap-2">
-                                <button
-                                  onClick={() => { setExtendTarget(plan); setExtendDays("7"); setExtendError(""); }}
-                                  className="flex-1 py-2.5 rounded-xl bg-stone-900 hover:bg-amber-400 hover:text-stone-900 text-white text-xs font-bold transition">
+                              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F0EBE2", display: "flex", gap: 10 }}>
+                                <button onClick={() => { setExtendTarget(plan); setExtendDays("7"); setExtendError(""); }}
+                                  style={{ flex: 1, padding: "12px", borderRadius: 12, background: "#1A1612", color: "#E8A020", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                                   Extend Plan
                                 </button>
                                 <Link to={`/plans/${plan._id}/stats`}
-                                  className="flex-1 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs font-bold text-center transition">
+                                  style={{ flex: 1, padding: "12px", borderRadius: 12, background: "#FAF7F2", color: "#6B5E52", border: "1px solid #EDE5D8", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700, textAlign: "center", display: "block" }}>
                                   View Stats
                                 </Link>
                               </div>
@@ -562,15 +494,14 @@ export default function Home() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center p-8 border-2 border-dashed border-stone-200 rounded-2xl text-stone-500">
-                    <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <div style={{ textAlign: "center", padding: "48px 20px", border: "2px dashed #DDD5C7", borderRadius: 20, background: "#FFFBF5" }}>
+                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#F5F0E8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                      <svg width="24" height="24" fill="none" stroke="#B0A090" strokeWidth="1.5" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                     </div>
-                    <p className="text-sm mb-4">You don't have any plans yet.</p>
-                    <Link to="/plans/create"
-                      className="bg-amber-400 text-stone-900 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-amber-500 transition">
+                    <p style={{ fontSize: 14, color: "#8A7B6E", marginBottom: 20, fontWeight: 500 }}>You don't have any plans yet.</p>
+                    <Link to="/plans/create" style={{ background: "#E8A020", color: "#1A1612", padding: "12px 28px", borderRadius: 12, fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 16px rgba(232,160,32,0.25)" }}>
                       Create Your First Plan
                     </Link>
                   </div>
@@ -584,3 +515,45 @@ export default function Home() {
     </>
   );
 }
+
+// ── Shared modal styles ──────────────────────────────────
+const modal: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: "fixed", inset: 0, zIndex: 50,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    background: "rgba(26,22,18,0.65)", backdropFilter: "blur(4px)", padding: 24,
+  },
+  box: {
+    background: "#FFFFFF", width: "100%", maxWidth: 380,
+    borderRadius: 24, padding: "32px 28px",
+    boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+  },
+  cancelBtn: {
+    flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #EDE5D8",
+    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+    color: "#6B5E52", background: "#FAF7F2", cursor: "pointer",
+  },
+  deleteBtn: {
+    flex: 1, padding: "12px", borderRadius: 12, border: "none",
+    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700,
+    color: "#FFFFFF", background: "#EF4444", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+  },
+};
+
+// ── Sidebar styles ───────────────────────────────────────
+const sb: Record<string, React.CSSProperties> = {
+  root: {
+    width: 268, flexShrink: 0, background: "#1A1612",
+    display: "flex", flexDirection: "column",
+    position: "sticky", top: 0, height: "100vh",
+    padding: "28px 22px", overflow: "hidden",
+  },
+  glow: {
+    position: "absolute", top: -60, right: -60,
+    width: 200, height: 200,
+    background: "rgba(232,160,32,0.07)",
+    borderRadius: "50%", filter: "blur(40px)",
+    pointerEvents: "none",
+  },
+};

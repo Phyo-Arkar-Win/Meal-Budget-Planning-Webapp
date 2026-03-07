@@ -27,7 +27,7 @@ export const getFoodById = async (req: Request, res: Response) => {
 
 // @route POST /api/foods
 // Accepts multipart/form-data — multer puts the Cloudinary URL in req.file.path
-export const createFood = async (req: Request, res: Response) => {
+export const AddFood = async (req: Request, res: Response) => {
   try {
     const { name, price, canteen } = req.body;
 
