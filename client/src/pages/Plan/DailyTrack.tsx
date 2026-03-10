@@ -92,24 +92,55 @@ export default function DailyTrack() {
   // ── Calorie & spend totals ────────────────────────────────────────────────
   // tracking → live from local state
   // recommendation/saved → from populated server data (always accurate)
-  const { totalCal, totalSpend } = useMemo(() => {
-    if (!plan) return { totalCal: 0, totalSpend: 0 };
+  const { totalCal, totalSpend, totalProtein, totalCarbs, totalFat, totalSugar } = useMemo(() => {
+    if (!plan) return { totalCal: 0, totalSpend: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0, totalSugar: 0 };
 
     if (isTracking) {
-      const templateCal   = plan.template_menus.filter((_, i) => tickedIndices.has(i)).reduce((s, f) => s + f.macros.calories, 0);
-      const templateSpend = plan.template_menus.filter((_, i) => tickedIndices.has(i)).reduce((s, f) => s + f.price, 0);
+      const ticked        = plan.template_menus.filter((_, i) => tickedIndices.has(i));
+      const templateCal   = ticked.reduce((s, f) => s + f.macros.calories, 0);
+      const templateSpend = ticked.reduce((s, f) => s + f.price, 0);
+      const templateProt  = ticked.reduce((s, f) => s + f.macros.protein, 0);
+      const templateCarbs = ticked.reduce((s, f) => s + f.macros.carbs, 0);
+      const templateFat   = ticked.reduce((s, f) => s + f.macros.fat, 0);
+      const templateSugar = ticked.reduce((s, f) => s + f.macros.sugar, 0);
       const excessCal     = excessList.reduce((s, e) => s + e.calories, 0);
       const excessSpend   = excessList.reduce((s, e) => s + e.price, 0);
-      return { totalCal: templateCal + excessCal, totalSpend: templateSpend + excessSpend };
+      const excessProt    = excessList.reduce((s, e) => s + (e.protein ?? 0), 0);
+      const excessCarbs   = excessList.reduce((s, e) => s + (e.carbs   ?? 0), 0);
+      const excessFat     = excessList.reduce((s, e) => s + (e.fat     ?? 0), 0);
+      const excessSugar   = excessList.reduce((s, e) => s + (e.sugar   ?? 0), 0);
+      return {
+        totalCal:     templateCal   + excessCal,
+        totalSpend:   templateSpend + excessSpend,
+        totalProtein: templateProt  + excessProt,
+        totalCarbs:   templateCarbs + excessCarbs,
+        totalFat:     templateFat   + excessFat,
+        totalSugar:   templateSugar + excessSugar,
+      };
     } else {
       // populated Food objects from server
       const savedFoods    = (progress?.eaten_template_menus ?? []) as any[];
       const templateCal   = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.calories ?? 0), 0);
-      const templateSpend = savedFoods.reduce((s: number, f: any) => s + (f?.price ?? 0), 0);
+      const templateSpend = savedFoods.reduce((s: number, f: any) => s + (f?.price           ?? 0), 0);
+      const templateProt  = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.protein  ?? 0), 0);
+      const templateCarbs = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.carbs    ?? 0), 0);
+      const templateFat   = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.fat      ?? 0), 0);
+      const templateSugar = savedFoods.reduce((s: number, f: any) => s + (f?.macros?.sugar    ?? 0), 0);
       const savedExcess   = progress?.excess_daily_foods ?? [];
       const excessCal     = savedExcess.reduce((s, e) => s + e.calories, 0);
       const excessSpend   = savedExcess.reduce((s, e) => s + e.price, 0);
-      return { totalCal: templateCal + excessCal, totalSpend: templateSpend + excessSpend };
+      const excessProt    = savedExcess.reduce((s, e) => s + (e.protein ?? 0), 0);
+      const excessCarbs   = savedExcess.reduce((s, e) => s + (e.carbs   ?? 0), 0);
+      const excessFat     = savedExcess.reduce((s, e) => s + (e.fat     ?? 0), 0);
+      const excessSugar   = savedExcess.reduce((s, e) => s + (e.sugar   ?? 0), 0);
+      return {
+        totalCal:     templateCal   + excessCal,
+        totalSpend:   templateSpend + excessSpend,
+        totalProtein: templateProt  + excessProt,
+        totalCarbs:   templateCarbs + excessCarbs,
+        totalFat:     templateFat   + excessFat,
+        totalSugar:   templateSugar + excessSugar,
+      };
     }
   }, [plan, isTracking, tickedIndices, excessList, progress]);
 
@@ -408,6 +439,39 @@ export default function DailyTrack() {
               </span>
             </div>
           )}
+
+          {/* Macronutrient bars */}
+          <div className="bg-white border border-stone-100 rounded-2xl px-5 py-4 shadow-sm fu d1">
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4">Macronutrients</p>
+            {([
+              { label: "Protein", current: totalProtein, target: plan.macro_targets.protein,      unit: "g", color: "#60a5fa" },
+              { label: "Carbs",   current: totalCarbs,   target: plan.macro_targets.carbohydrate, unit: "g", color: "#f59e0b" },
+              { label: "Fat",     current: totalFat,     target: plan.macro_targets.fat,           unit: "g", color: "#f97316" },
+              { label: "Sugar",   current: totalSugar,   target: plan.macro_targets.sugar,         unit: "g", color: "#a78bfa" },
+            ]).map(({ label, current, target, unit, color }) => {
+              const over = current > target;
+              return (
+                <div key={label} className="mb-3 last:mb-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-stone-500">{label}</p>
+                    <p className="text-xs text-stone-500">
+                      <span className={`font-bold ${over ? "text-red-500" : "text-stone-800"}`}>
+                        {Math.round(current * 10) / 10}{unit}
+                      </span>
+                      {" / "}{Math.round(target * 10) / 10}{unit}
+                    </p>
+                  </div>
+                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, (current / target) * 100)}%`,
+                        background: over ? "#ef4444" : color,
+                      }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Template meals */}
           <div className="fu d1">
