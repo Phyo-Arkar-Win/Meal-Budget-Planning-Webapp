@@ -13,6 +13,10 @@ interface ChartDay {
   calories_exceeded: number;
   budget_exceeded:   number;
   exercised:         boolean;
+  total_protein:     number;
+  total_carbs:       number;
+  total_fat:         number;
+  total_sugar:       number;
 }
 
 export default function PlanStats() {
@@ -78,10 +82,26 @@ export default function PlanStats() {
   // Chart scale — max exceeded calories (or a minimum of 500 for scale)
   const maxExceeded   = Math.max(...stats.map(d => d.calories_exceeded), 500);
 
+  // Avg macro exceeded per saved day (0 on days within target)
+  const avgMacroEx = (key: "total_protein" | "total_carbs" | "total_fat" | "total_sugar", target: number) =>
+    savedDays > 0
+      ? stats.reduce((s, d) => s + Math.max(0, d[key] - target), 0) / savedDays
+      : 0;
+  const avgProteinEx = avgMacroEx("total_protein", plan?.macro_targets.protein      ?? 0);
+  const avgCarbsEx   = avgMacroEx("total_carbs",   plan?.macro_targets.carbohydrate ?? 0);
+  const avgFatEx     = avgMacroEx("total_fat",      plan?.macro_targets.fat          ?? 0);
+  const avgSugarEx   = avgMacroEx("total_sugar",    plan?.macro_targets.sugar        ?? 0);
+
   // Budget stats
   const hasBudget     = plan.priority === "budget" && plan.budget_limit != null;
   const totalBudgetEx = stats.reduce((s, d) => s + d.budget_exceeded, 0);
   const maxBudgetEx   = Math.max(...stats.map(d => d.budget_exceeded), plan.budget_limit ?? 100);
+
+  // Macro chart scale — tallest stacked bar across all saved days
+  const maxMacroTotal = Math.max(
+    ...stats.map(d => d.total_protein + d.total_carbs + d.total_fat + d.total_sugar),
+    1,
+  );
 
   return (
     <>
@@ -118,17 +138,34 @@ export default function PlanStats() {
             <p className="text-stone-400 text-sm mt-1 capitalize">{plan.fitness_goal} · {plan.duration} days</p>
           </div>
 
-          {/* KPI cards */}
+          {/* KPI cards — row 1: general */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 fu d1">
             {[
               { label: "Days Saved",   value: `${savedDays}/${plan.duration}`, color: "#86efac" },
               { label: "Compliance",   value: `${compliance}%`,                 color: compliance >= 70 ? "#86efac" : "#fca5a5" },
               { label: "Exercised",    value: `${daysExercised} days`,          color: "#93c5fd" },
-              { label: "Avg Exceeded", value: avgExceeded > 0 ? `${fmt(avgExceeded)} kcal` : "None", color: avgExceeded > 0 ? "#fca5a5" : "#86efac" },
+              { label: "Avg Cal Exceeded", value: avgExceeded > 0 ? `${fmt(avgExceeded)} kcal` : "None", color: avgExceeded > 0 ? "#fca5a5" : "#86efac" },
             ].map(k => (
               <div key={k.label} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm text-center">
                 <p className="text-[10px] text-stone-400 uppercase tracking-widest mb-1">{k.label}</p>
                 <p className="font-bold text-lg leading-tight" style={{ color: k.color }}>{k.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* KPI cards — row 2: avg macro exceeded */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 fu d1">
+            {[
+              { label: "Avg Protein Ex", value: avgProteinEx, unit: "g", color: "#60a5fa" },
+              { label: "Avg Carbs Ex",   value: avgCarbsEx,   unit: "g", color: "#f59e0b" },
+              { label: "Avg Fat Ex",     value: avgFatEx,     unit: "g", color: "#f97316" },
+              { label: "Avg Sugar Ex",   value: avgSugarEx,   unit: "g", color: "#a78bfa" },
+            ].map(k => (
+              <div key={k.label} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm text-center">
+                <p className="text-[10px] text-stone-400 uppercase tracking-widest mb-1">{k.label}</p>
+                <p className="font-bold text-lg leading-tight" style={{ color: k.value > 0 ? "#fca5a5" : k.color }}>
+                  {k.value > 0 ? `+${(Math.round(k.value * 10) / 10)}${k.unit}` : "None"}
+                </p>
               </div>
             ))}
           </div>
@@ -235,6 +272,86 @@ export default function PlanStats() {
               </div>
             </div>
           )}
+
+          {/* Macronutrient stacked bar chart */}
+          <div className="bg-white border border-stone-100 rounded-3xl p-6 shadow-sm fu d3">
+            <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-1">Macronutrients Per Day</p>
+            <p className="text-xs text-stone-400 mb-4">Protein · Carbs · Fat · Sugar (g) — stacked per saved day</p>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 mb-5 text-xs text-stone-400 flex-wrap">
+              {([
+                { label: "Protein", color: "#60a5fa" },
+                { label: "Carbs",   color: "#f59e0b" },
+                { label: "Fat",     color: "#f97316" },
+                { label: "Sugar",   color: "#a78bfa" },
+              ] as const).map(m => (
+                <span key={m.label} className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: m.color }} />
+                  {m.label}
+                </span>
+              ))}
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-stone-200 inline-block" />Not saved</span>
+            </div>
+
+            <div className="relative">
+              <div className="flex items-end gap-1 h-40">
+                {allDays.map(({ day, entry }) => {
+                  if (!entry) {
+                    return (
+                      <div key={day} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-[9px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                          Day {day}: —
+                        </div>
+                        <div className="w-full rounded-t-sm" style={{ height: 4, background: "#e7e5e4", minHeight: 2 }} />
+                      </div>
+                    );
+                  }
+                  const total   = entry.total_protein + entry.total_carbs + entry.total_fat + entry.total_sugar;
+                  const barPct  = (total / maxMacroTotal) * 100;
+                  const segs = [
+                    { key: "protein", val: entry.total_protein, color: "#60a5fa" },
+                    { key: "carbs",   val: entry.total_carbs,   color: "#f59e0b" },
+                    { key: "fat",     val: entry.total_fat,     color: "#f97316" },
+                    { key: "sugar",   val: entry.total_sugar,   color: "#a78bfa" },
+                  ];
+                  return (
+                    <div key={day} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-[9px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 text-left space-y-0.5">
+                        <p className="font-bold">Day {day}</p>
+                        <p>Protein: {Math.round(entry.total_protein)}g</p>
+                        <p>Carbs: {Math.round(entry.total_carbs)}g</p>
+                        <p>Fat: {Math.round(entry.total_fat)}g</p>
+                        <p>Sugar: {Math.round(entry.total_sugar)}g</p>
+                      </div>
+                      {/* Stacked bar */}
+                      <div className="w-full flex flex-col-reverse overflow-hidden rounded-t-sm transition-all duration-500"
+                        style={{ height: `${Math.max(barPct, 4)}%` }}>
+                        {segs.map(seg => (
+                          <div key={seg.key}
+                            style={{
+                              flex: seg.val,
+                              background: seg.color,
+                              minHeight: seg.val > 0 ? 2 : 0,
+                            }} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Day labels */}
+              <div className="flex justify-between text-[9px] text-stone-300 mt-2">
+                {allDays.map(({ day }) => (
+                  <div key={day} className="flex-1 text-center">
+                    {day % 7 === 1 || day === 1 ? day : ""}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* Per-day breakdown table */}
           <div className="bg-white border border-stone-100 rounded-3xl p-6 shadow-sm fu d4">

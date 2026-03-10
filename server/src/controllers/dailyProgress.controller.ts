@@ -234,15 +234,26 @@ export const getPlanStats = async (req: AuthRequest, res: Response): Promise<voi
       plan_id: planId,
       user_id: userId,
       status:  'saved',
-    }).sort({ day_number: 1 });
+    }).sort({ day_number: 1 }).populate<{ eaten_template_menus: { macros: { protein: number; carbs: number; fat: number; sugar: number; calories: number } }[] }>('eaten_template_menus');
 
-    const chartData = history.map(day => ({
-      day_number:        day.day_number,
-      date:              day.date,
-      calories_exceeded: day.recommendation_data?.calories_exceeded  || 0,
-      budget_exceeded:   day.recommendation_data?.budget_exceeded    || 0,
-      exercised:         day.recommendation_data?.actually_exercised || false,
-    }));
+    const chartData = history.map(day => {
+      const templateFoods = (day.eaten_template_menus as any[]);
+      const excessFoods   = day.excess_daily_foods ?? [];
+
+      const sum = (arr: any[], key: string) => arr.reduce((s: number, f: any) => s + (f?.macros?.[key] ?? f?.[key] ?? 0), 0);
+
+      return {
+        day_number:        day.day_number,
+        date:              day.date,
+        calories_exceeded: day.recommendation_data?.calories_exceeded  || 0,
+        budget_exceeded:   day.recommendation_data?.budget_exceeded    || 0,
+        exercised:         day.recommendation_data?.actually_exercised || false,
+        total_protein:     sum(templateFoods, 'protein') + sum(excessFoods, 'protein'),
+        total_carbs:       sum(templateFoods, 'carbs')   + sum(excessFoods, 'carbs'),
+        total_fat:         sum(templateFoods, 'fat')     + sum(excessFoods, 'fat'),
+        total_sugar:       sum(templateFoods, 'sugar')   + sum(excessFoods, 'sugar'),
+      };
+    });
 
     res.status(200).json({
       message:            "Stats retrieved successfully",
