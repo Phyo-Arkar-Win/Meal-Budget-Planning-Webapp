@@ -123,10 +123,41 @@ export default function Step3AddFoods({
               }} />
           </div>
 
+          {/* Macro bars — protein, carbs, fat, sugar */}
+          {([
+            { key: "protein",      label: "Protein",  unit: "g", target: macros.protein,      color: "#60a5fa" },
+            { key: "carbohydrate", label: "Carbs",    unit: "g", target: macros.carbohydrate, color: "#f59e0b" },
+            { key: "fat",          label: "Fat",      unit: "g", target: macros.fat,           color: "#f97316" },
+            { key: "sugar",        label: "Sugar",    unit: "g", target: macros.sugar,         color: "#a78bfa" },
+          ] as const).map(({ key, label, unit, target, color }) => {
+            const current = selectedFoods.reduce((sum, f) => sum + (key === "carbohydrate" ? f.macros.carbs : f.macros[key as "protein" | "fat" | "sugar"]), 0);
+            const over    = current > target;
+            return (
+              <div key={key} className="mt-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{label}</p>
+                  <p className="text-xs text-stone-500">
+                    <span className={`font-semibold ${over ? "text-red-500" : "text-stone-800"}`}>
+                      {Math.round(current * 10) / 10}{unit}
+                    </span>
+                    {" / "}{Math.round(target * 10) / 10}{unit}
+                  </p>
+                </div>
+                <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (current / target) * 100)}%`,
+                      background: over ? "#ef4444" : color,
+                    }} />
+                </div>
+              </div>
+            );
+          })}
+
           {/* Fix #5 — Budget bar (only if budget priority) */}
           {priority === "budget" && budgetLimit && (
             <>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1.5 mt-3">
                 <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Budget</p>
                 <p className="text-xs text-stone-500">
                   <span className={`font-semibold ${totals.price > Number(budgetLimit) ? "text-red-500" : "text-stone-800"}`}>
